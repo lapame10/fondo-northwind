@@ -203,7 +203,7 @@ function sym(c){
 function posicion(c){ const h=hash(c); return ((h%900000)/100+1200).toFixed(2); }
 function varpct(c){ const h=hash('v'+c); const p=((h%420)/100).toFixed(2); return (h%2===0)?('+'+p+'%'):('-'+p+'%'); }
 function spark(c, up){
-  const h=hash('s'+c); let pts=[], y=14;
+  let h=hash('s'+c); let pts=[], y=14;
   for(let i=0;i<20;i++){ h=(Math.imul(h,1103515245)+12345)>>>0; y+=(h%7)-3; y=Math.max(2,Math.min(18,y)); pts.push(i*3+','+y); }
   const col=up?'#25c26e':'#e5484d';
   return '<svg class="spark" viewBox="0 0 60 20" preserveAspectRatio="none"><polyline points="'+pts.join(' ')+
