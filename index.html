@@ -384,7 +384,7 @@
 </footer>
 
 <script>
-const BUILD='nw3';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw4';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
@@ -560,14 +560,76 @@ function marcarTodoVisto(){
 let _pedidoPermiso=false;
 function pedirPermiso(){
   if(_pedidoPermiso) return;
+  _pedidoPermiso=true;
   try{
-    if(!('Notification' in window)) return;
-    if(Notification.permission==='granted'||Notification.permission==='denied') return;
-    _pedidoPermiso=true;
-    Notification.requestPermission().then(function(p){
-      if(p==='granted') pintarBadge();
-    }).catch(function(){});
-  }catch(e){}
+    if(!('Notification' in window)){ console.log('NW: este navegador no tiene Notification'); return; }
+    if(Notification.permission==='granted'){ registrarPush(); return; }
+    if(Notification.permission==='denied'){ console.log('NW: las notificaciones estan bloqueadas'); return; }
+    /* En iOS hace falta que el service worker este LISTO antes de pedir el permiso.
+       Si no, Apple rechaza la peticion en silencio y no pasa nada. */
+    cuandoSWListo(function(){
+      Notification.requestPermission().then(function(p){
+        console.log('NW: permiso -> '+p);
+        if(p==='granted'){ pintarBadge(); registrarPush(); }
+      }).catch(function(e){ console.log('NW: no se pudo pedir el permiso: '+e.message); });
+    });
+  }catch(e){ console.log('NW: error pidiendo permiso: '+e.message); }
+}
+
+/* ===== SERVICE WORKER =====
+   Obligatorio en iOS para (a) poder pedir el permiso y (b) recibir avisos con la
+   app cerrada. Es el "portero": vive en el telefono aunque la app este cerrada. */
+let _swListo=false, _swEsperando=[];
+function cuandoSWListo(fn){
+  if(_swListo){ fn(); return; }
+  _swEsperando.push(fn);
+  if(!('serviceWorker' in navigator)){ _swListo=true; return; }
+}
+function arrancarSW(){
+  if(!('serviceWorker' in navigator)){ console.log('NW: sin serviceWorker'); _swListo=true; return; }
+  navigator.serviceWorker.register('sw.js').then(function(reg){
+    function listo(){
+      _swListo=true;
+      _swEsperando.forEach(function(f){ try{ f(); }catch(e){} }); _swEsperando=[];
+      console.log('NW: service worker listo');
+      if(Notification.permission==='granted') registrarPush();
+    }
+    if(navigator.serviceWorker.ready) { navigator.serviceWorker.ready.then(listo); }
+    else listo();
+  }).catch(function(e){ console.log('NW: service worker fallo: '+e.message); });
+}
+
+/* ===== SUSCRIPCION PUSH =====
+   La "direccion" de este telefono. Se guarda en la nube para poder mandarle avisos.
+   La clave publica (VAPID) identifica a la mesa; la privada NUNCA vive aqui. */
+const VAPID_PUBLICA = 'BOyWDq4KcH5cw93a5DwbbZT6Vi9FkjS6qggIptmEClw1Fa0wG-dXORUDnK62WdugGPNWSdBQbYyAOyCVLtWZdMs';
+function b64(base64){
+  const pad='='.repeat((4-base64.length%4)%4);
+  const b=(base64+pad).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(b); const arr=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) arr[i]=raw.charCodeAt(i);
+  return arr;
+}
+async function registrarPush(){
+  try{
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)){ console.log('NW: sin push'); return; }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: b64(VAPID_PUBLICA)
+      });
+    }
+    /* guardar la direccion del telefono en la nube */
+    const quien = user || 'anon';
+    await fetch(RTDB+'/fondo/mesa/push/'+quien+'.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ sub: sub.toJSON(), t: Date.now(), ua: navigator.userAgent.slice(0,80) })
+    });
+    console.log('NW: suscripcion push guardada para '+quien);
+    window._nwPush = true;
+  }catch(e){ console.log('NW: no se pudo suscribir al push: '+e.message); }
 }
 (function(){
   // permite fijar la identidad desde la URL:  ...?op=2
@@ -1036,6 +1098,7 @@ document.getElementById('codeInp').addEventListener('keydown',function(e){
 
 /* ===== ARRANQUE ===== */
 (async function init(){
+  arrancarSW();                        // el portero, antes de nada
   await initMesa();
   /* SIEMPRE empieza cerrado: hay que meter la clave para abrir un mensaje */
   try{ localStorage.removeItem('nw_code'); sessionStorage.removeItem('nw_code'); }catch(e){}
