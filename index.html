@@ -156,6 +156,17 @@
   .note .nm{font-size:9.5px;color:var(--dim2);font-family:var(--mono);margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);
     display:flex;justify-content:space-between;}
   .closenote{color:var(--dim);cursor:pointer;font-weight:700;}
+  /* las ✕ tienen que verse y poder pulsarse comodamente con el dedo */
+  .note .nl .closenote{color:#c9d4e2;background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:4px 9px;
+    font-size:12px;letter-spacing:0;line-height:1;font-weight:800;flex:0 0 auto;
+    -webkit-tap-highlight-color:transparent;}
+  .note .nl .closenote:active{background:rgba(255,255,255,.18);}
+  .note .nm .closenote{color:#c9d4e2;background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:4px 10px;
+    font-size:10px;letter-spacing:.4px;font-weight:700;line-height:1;
+    -webkit-tap-highlight-color:transparent;}
+  .note .nm .closenote:active{background:rgba(255,255,255,.18);}
   .anbtn{font-size:10.5px;font-weight:800;font-family:var(--mono);border-radius:7px;padding:6px 10px;cursor:pointer;}
   .anbtn.edit{color:var(--accent);background:rgba(74,158,255,.09);border:1px solid rgba(74,158,255,.35);}
   .anbtn.del{color:var(--red);background:rgba(229,72,77,.09);border:1px solid rgba(229,72,77,.35);}
@@ -368,7 +379,7 @@
 </footer>
 
 <script>
-const BUILD='nw1';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw2';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
@@ -596,7 +607,8 @@ function render(){
         '<div style="color:var(--dim2);font-size:8.5px;font-weight:700;letter-spacing:.3px;margin-top:2px">'+autorBadge(m.a)+'</div></div>';
     const note=document.createElement('div'); note.className='note'; note.dataset.mid=m.id;
     const mio=String(m.a||'')===String(user||'');
-    note.innerHTML='<div class="nl">Nota del analista <span>'+autorLabel(m.a)+' · '+autorBadge(m.a)+'</span></div>'+
+    note.innerHTML='<div class="nl">Nota del analista <span>'+autorLabel(m.a)+' · '+autorBadge(m.a)+'</span>'+
+        '<span class="closenote arriba" title="cerrar">✕</span></div>'+
       '<div class="nt">'+
         '<div class="gatelock">'+
           '<span class="gl">Clave de operador</span>'+
@@ -610,7 +622,7 @@ function render(){
         '<span class="anbtn edit">✎ Modificar</span>'+
         '<span class="anbtn del">⨯ Anular orden</span></div>':'')+
       '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(S)+'</span>'+
-      '<span class="closenote">✕ cerrar</span></div>';
+      '<span class="closenote abajo">✕ cerrar</span></div>';
     /* guardar el mensaje CIFRADO: se descifra al validar la clave */
     note._cif = m.c;
     note.querySelectorAll('.anbtn').forEach(b=>b.addEventListener('click',function(ev){
@@ -624,6 +636,7 @@ function render(){
       if(note.classList.contains('show')){ closeNotes(); return; }   // si ya esta abierta, la cierra
       closeNotes();
       note.classList.add('show'); row.classList.add('open');
+      setTimeout(function(){ note.scrollIntoView({block:'nearest',behavior:'smooth'}); },120);
       const i=note.querySelector('.gpin'); if(i) setTimeout(()=>i.focus(),120);
     });
     /* validar la clave SIN salir de la fila */
@@ -721,10 +734,9 @@ async function delMsg(id){
 /* ===== cerrar notas ===== */
 function handleOutside(e){
   const el=e.target;
-  if(el.closest('.closenote')){ closeNotes(); return; }
-  if(el.closest('.note')) return;
-  if(el.closest('.row')) return;
-  closeNotes();
+  /* SOLO cierra si el toque fue en una ✕. Tocar fuera NO cierra: hacia que la nota
+     se cerrara sola al hacer scroll para leer un mensaje largo. */
+  if(el.closest('.closenote')){ closeNotes(); }
 }
 document.addEventListener('pointerdown',handleOutside,true);
 document.addEventListener('touchstart',handleOutside,{capture:true,passive:true});
@@ -951,7 +963,8 @@ function abrirNotaDe(id){
     row =document.querySelector('#rows .row[data-mid="'+id+'"]');
     note=document.querySelector('#rows .note[data-mid="'+id+'"]');
   }
-  if(row && note){ note.classList.add('show'); row.classList.add('open'); markRead(row.dataset.mid || id, row); }
+  if(row && note){ note.classList.add('show'); row.classList.add('open'); markRead(row.dataset.mid || id, row);
+    setTimeout(function(){ note.scrollIntoView({block:'nearest',behavior:'smooth'}); },120); }
 }
 document.getElementById('codeOk').onclick=intentarCodigo;
 document.getElementById('codeCancel').onclick=cerrarPrompt;
