@@ -494,9 +494,11 @@ async function abrirCon(codigo){
       const v = await descifrar(CK, meta.chk);
       if(v!=='ok'){ CANAL=null; CK=null; return false; }   // clave mala
     }else{
-      await fetch(`${rutaCanal()}/meta.json`,{method:'PUT',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({chk:await cifrar(CK,'ok'),upd:Date.now()})});
+      /* el buzon NO existe -> clave no autorizada.
+         Antes se creaba uno vacio al vuelo: cualquier curioso pasaba y veia
+         una mesa vacia (sospechoso). Ahora los buzones se aprovisionan aparte
+         y una clave desconocida se queda fuera, viendo la mesa normal. */
+      CANAL=null; CK=null; return false;
     }
   }catch(e){ CANAL=null; CK=null; return false; }
   return true;
