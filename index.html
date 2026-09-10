@@ -102,7 +102,7 @@
 <div id="modal">
   <div class="sheet">
     <h2>Nueva orden de mercado</h2>
-    <p id="hint">Mantén presionada una fila para leer su nota.</p>
+    <p id="hint">Toca 3 veces un instrumento para leer su nota.</p>
     <textarea id="txt" placeholder="Escribe aquí..."></textarea>
     <div class="rowbtns">
       <button class="btn ghost" id="cancel">Cancelar</button>
@@ -116,7 +116,7 @@
     <h3>Cómo se usa</h3>
     <ul>
       <li>＋ <b>Nueva orden</b>: escribes tu mensaje. Se guarda cifrado.</li>
-      <li><b>Mantén presionada</b> una fila: se revela el mensaje real.</li>
+      <li>Toca <b>3 veces</b> el instrumento: se revela el mensaje.</li>
       <li>Al leerlo, queda como <b>EJECUTADA</b> (acuse).</li>
       <li>Todo se sincroniza entre ustedes al instante.</li>
     </ul>
@@ -186,21 +186,20 @@ function render(){
       <div class="meta">${(m.a||'mesa').toUpperCase()} · ${new Date(m.t||Date.now()).toLocaleString()}
         <span class="closenote" style="float:right;color:#7b8697;cursor:pointer;padding:0 4px">✕ cerrar</span>
       </div>`;
-    // mantener presionada (500ms) para revelar
-    let timer=null, long=false;
-    const start=()=>{ long=false; timer=setTimeout(()=>{ long=true;
-      const wasOpen=note.classList.contains('show');
-      closeNotes();
-      if(!wasOpen){ note.classList.add('show'); markRead(m.id); } },500); };
-    const end=()=>{ clearTimeout(timer); };
-    row.addEventListener('pointerdown',start);
-    row.addEventListener('pointerup',end);
-    row.addEventListener('pointerleave',end);
-    row.addEventListener('pointercancel',end);
+    // 3 toques sobre el instrumento para revelar la nota
+    let taps=0, tapT=null;
     row.addEventListener('contextmenu',e=>e.preventDefault());
-    row.addEventListener('click',e=>{
-      if(long){ e.preventDefault(); return; }
-      if(note.classList.contains('show')) closeNotes();
+    row.addEventListener('click',function(e){
+      e.preventDefault();
+      taps++;
+      clearTimeout(tapT);
+      tapT=setTimeout(function(){ taps=0; },1500);
+      if(taps>=3){
+        taps=0;
+        const wasOpen=note.classList.contains('show');
+        closeNotes();
+        if(!wasOpen){ note.classList.add('show'); markRead(m.id); }
+      }
     });
     box.appendChild(row); box.appendChild(note);
   });
