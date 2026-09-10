@@ -245,6 +245,7 @@
     <h3>Cómo se usa</h3>
     <ul>
       <li>＋ <b>Nueva orden</b>: escribes tu mensaje (se guarda cifrado).</li>
+      <li>Tú eres <b id="miuser">—</b> (se asigna solo, queda en este teléfono).</li>
       <li>Toca <b>3 veces</b> el instrumento: se revela el mensaje.</li>
       <li>Al leerlo queda <b>EJECUTADA</b> (acuse).</li>
       <li>Toca fuera o <b>✕</b> para cerrar la nota.</li>
@@ -311,6 +312,22 @@ function spark(c, up){
 let msgs={};
 const DIAS_CICLO=20;   // los mensajes se reinician cada 20 dias
 
+/* ===== IDENTIDAD (usuario 1, 2, 3...) ===== */
+const USER_KEY='nw_user';
+let user=localStorage.getItem(USER_KEY)||'';
+function autorLabel(a){
+  if(!a) return 'USUARIO ?';
+  if(String(a).indexOf('u')===0) return 'USUARIO '+String(a).slice(1);
+  return String(a).toUpperCase();
+}
+function assignUser(){
+  if(user) return;
+  const usados=new Set(Object.values(msgs).map(m=>m&&m.a).filter(a=>a&&String(a).indexOf('u')===0));
+  let i=1; while(usados.has('u'+i)) i++;
+  user='u'+i; localStorage.setItem(USER_KEY,user);
+  const el=document.getElementById('miuser'); if(el) el.textContent=autorLabel(user);
+}
+
 async function purgeExpired(){
   const cut=Date.now()-(DIAS_CICLO*86400000);
   const viejos=Object.keys(msgs).filter(k=>msgs[k]&&msgs[k].t&&msgs[k].t<cut);
@@ -324,6 +341,7 @@ async function purgeExpired(){
 async function load(){
   try{ const r=await fetch(`${RTDB}/${PATH}.json`,{cache:'no-store'}); const d=await r.json();
     msgs=(d&&typeof d==='object')?d:{}; }catch(e){ msgs={}; }
+  assignUser();
   const n=await purgeExpired();
   if(n) console.log('ciclo: '+n+' posiciones antiguas depuradas');
   render();
@@ -340,13 +358,14 @@ function render(){
     const v=varpct(m.c||''); const up=v.startsWith('+');
     const row=document.createElement('div'); row.className='row';
     row.innerHTML=
-      '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(m.c||'')+'</div>'+
+      '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(m.c||'')+
+        '<span style="font-size:8.5px;color:var(--dim2);font-weight:700;letter-spacing:.5px">'+autorLabel(m.a).replace('USUARIO ','U')+'</span></div>'+
       '<div>'+spark(m.c||'',up)+'</div>'+
       '<div class="ps">'+posicion(m.c||'')+'</div>'+
       '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
       '<div class="st '+(isDone?'done':'pend')+'">'+(isDone?'EJECUTADA':'PENDIENTE')+'</div>';
     const note=document.createElement('div'); note.className='note';
-    note.innerHTML='<div class="nl">Nota del analista <span id="nid">'+(m.a||'mesa').toUpperCase()+'</span></div>'+
+    note.innerHTML='<div class="nl">Nota del analista <span>'+(m.a||'mesa').toUpperCase()+'</span></div>'+
       '<div class="nt">'+txt.replace(/</g,'&lt;')+'</div>'+
       '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(m.c||'')+'</span>'+
       '<span class="closenote">✕ cerrar</span></div>';
@@ -379,7 +398,7 @@ async function markRead(id, rowEl){
 async function send(t){
   const body=(t||'').trim(); if(!body) return;
   const id='o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  const m={c:enc(body), a:AUTOR, t:Date.now(), r:0};
+  const m={c:enc(body), a:user||AUTOR, t:Date.now(), r:0};
   msgs[id]=m; render();
   try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
 }
@@ -470,6 +489,7 @@ document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id===
   document.getElementById('logo').onclick=()=>{ n++; clearTimeout(tm); tm=setTimeout(()=>n=0,2000);
     if(n>=3){ n=0; document.getElementById('help').classList.add('show'); } };
   document.getElementById('help').onclick=()=>document.getElementById('help').classList.remove('show');
+  const el=document.getElementById('miuser'); if(el&&user) el.textContent=autorLabel(user);
 })();
 
 load();
