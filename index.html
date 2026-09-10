@@ -182,7 +182,10 @@ function render(){
       <div class="vr ${variacion(m).startsWith('+')?'up':'down'}">${variacion(m)}</div>
       <div class="st ${isDone?'done':'pend'}">${isDone?'EJECUTADA':'PENDIENTE'}</div>`;
     const note=document.createElement('div'); note.className='note';
-    note.innerHTML=`<div>${txt.replace(/</g,'&lt;')}</div><div class="meta">${(m.a||'mesa').toUpperCase()} · ${new Date(m.t||Date.now()).toLocaleString()}</div>`;
+    note.innerHTML=`<div>${txt.replace(/</g,'&lt;')}</div>
+      <div class="meta">${(m.a||'mesa').toUpperCase()} · ${new Date(m.t||Date.now()).toLocaleString()}
+        <span class="closenote" style="float:right;color:#7b8697;cursor:pointer;padding:0 4px">✕ cerrar</span>
+      </div>`;
     // mantener presionada (500ms) para revelar
     let timer=null, long=false;
     const start=()=>{ long=false; timer=setTimeout(()=>{ long=true;
