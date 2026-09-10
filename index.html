@@ -79,6 +79,31 @@
   .doc .dt{flex:1;font-size:12.5px;font-weight:600;}
   .doc .dm{font-size:10px;color:var(--dim2);font-family:var(--mono);margin-top:2px;}
 
+  /* filtros + documento */
+  .chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 12px;}
+  .chip{flex:0 0 auto;background:#12161d;border:1px solid var(--line2);color:var(--dim);border-radius:8px;
+    padding:6px 11px;font-size:11px;font-weight:700;font-family:var(--mono);cursor:pointer;}
+  .chip.on{background:rgba(74,158,255,.12);border-color:rgba(74,158,255,.45);color:#cfe4ff;}
+  .dbtn{font-size:10.5px;font-weight:800;color:var(--accent);border:1px solid rgba(74,158,255,.4);
+    background:rgba(74,158,255,.08);border-radius:7px;padding:5px 9px;cursor:pointer;font-family:var(--mono);}
+  #docModal{position:fixed;inset:0;z-index:90;background:rgba(3,4,6,.94);display:none;padding:14px;}
+  #docModal.show{display:block;overflow:auto;}
+  .paper{background:#f7f8fa;color:#12161d;border-radius:10px;max-width:520px;margin:0 auto;
+    padding:26px 22px;font-size:12px;box-shadow:0 20px 60px rgba(0,0,0,.7);}
+  .paper h1{font-size:16px;margin:0 0 2px;letter-spacing:.2px;}
+  .paper .ph{font-size:10px;color:#6b7280;font-family:var(--mono);margin-bottom:16px;}
+  .paper hr{border:none;border-top:1px solid #dfe3e8;margin:14px 0;}
+  .paper table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10.5px;}
+  .paper th{text-align:left;color:#6b7280;font-weight:700;padding:6px 4px;border-bottom:1px solid #e5e8ed;font-size:9px;letter-spacing:.6px;}
+  .paper td{padding:6px 4px;border-bottom:1px solid #eef0f3;}
+  .paper td.r,.paper th.r{text-align:right;}
+  .paper .tot{font-weight:800;border-top:2px solid #12161d;}
+  .paper .ft{font-size:9px;color:#8b93a1;font-family:var(--mono);margin-top:16px;line-height:1.6;}
+  .paper .stamp{display:inline-block;border:1.5px solid #2f7d4f;color:#2f7d4f;border-radius:4px;
+    padding:3px 7px;font-size:9px;font-weight:800;letter-spacing:1px;}
+  .closeDoc{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:14px;z-index:95;
+    background:#181c23;border:1px solid var(--line2);color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;}
+
   /* ── tabla ── */
   .wrap{padding:12px 12px 96px;}
   .hdrrow,.row{display:grid;grid-template-columns:1fr 56px 78px 58px 88px;gap:6px;align-items:center;}
@@ -218,11 +243,24 @@
 
 <div class="wrap pane" id="pane-reportes">
   <div class="card">
+    <h4>Estado documental</h4>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div class="big" style="font-size:20px">Al día</div><div class="sub2">Próximo cierre: 30/09/2026</div></div>
+      <div class="stamp" style="border-color:#2f7d4f;color:#2f7d4f">AUDITADO</div>
+    </div>
+  </div>
+  <div class="chips" id="docChips">
+    <div class="chip on" data-f="todos">Todos</div>
+    <div class="chip" data-f="mensual">Mensuales</div>
+    <div class="chip" data-f="trimestral">Trimestrales</div>
+    <div class="chip" data-f="nota">Notas</div>
+  </div>
+  <div class="card">
     <h4>Documentos</h4>
     <div id="rDocs"></div>
   </div>
   <div style="font-size:10.5px;color:var(--dim2);font-family:var(--mono);text-align:center;line-height:1.7">
-    Los reportes se generan automáticamente cada cierre de mes
+    Los reportes se generan automáticamente al cierre de cada periodo<br>Verificados con sello digital · Conservación 5 años
   </div>
 </div>
 
@@ -239,6 +277,8 @@
     </div>
   </div>
 </div>
+
+<div id="docModal"><button class="closeDoc" id="closeDoc">✕ Cerrar</button><div id="docBody"></div></div>
 
 <div id="help">
   <div class="helpcard">
@@ -485,13 +525,68 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>swit
     '<div class="lrow"><span class="l1">Volatilidad implícita</span><span class="tagx ok">NORMAL</span></div>'+
     '<div class="lrow"><span class="l1">Liquidez de mesa</span><span class="tagx ok">OK</span></div>'+
     '<div class="lrow"><span class="l1">Límite VaR</span><span class="tagx ok">OK</span></div>';
-  // Reportes
-  const docs=[['Reporte mensual','Agosto 2026 · PDF · 412 KB'],['Estado de cuenta','Q3 2026 · PDF · 1.2 MB'],
-    ['Nota de riesgo','Semana 36 · PDF · 96 KB'],['Posiciones consolidadas','Cierre 08/09/2026 · XLSX · 340 KB'],
-    ['Acta de comité','Septiembre 2026 · PDF · 208 KB']];
-  document.getElementById('rDocs').innerHTML=docs.map(d=>
-    '<div class="doc"><div class="ic">▤</div><div><div class="dt">'+d[0]+'</div><div class="dm">'+d[1]+'</div></div><div style="color:var(--dim2);font-size:14px">⌂</div></div>').join('');
 })();
+
+/* ===== DOCUMENTOS (Reportes) ===== */
+const DOCS=[
+ {t:'Reporte mensual de gestión', tipo:'mensual',    per:'Agosto 2026',   f:'PDF', kb:'412 KB', pg:14, sello:'AUDITADO'},
+ {t:'Estado de cuenta',           tipo:'trimestral', per:'Q3 2026',       f:'PDF', kb:'1.2 MB', pg:32, sello:'FIRMADO'},
+ {t:'Nota de riesgo semanal',     tipo:'nota',       per:'Semana 36/2026',f:'PDF', kb:'96 KB',  pg:4,  sello:'INTERNO'},
+ {t:'Posiciones consolidadas',    tipo:'mensual',    per:'Cierre 08/09/2026', f:'XLSX', kb:'340 KB', pg:'—', sello:'AUDITADO'},
+ {t:'Acta de comité de inversión',tipo:'nota',       per:'Septiembre 2026',f:'PDF', kb:'208 KB', pg:6,  sello:'CONFIDENCIAL'},
+ {t:'Reporte mensual de gestión', tipo:'mensual',    per:'Julio 2026',    f:'PDF', kb:'398 KB', pg:13, sello:'AUDITADO'},
+ {t:'Estado de cuenta',           tipo:'trimestral', per:'Q2 2026',       f:'PDF', kb:'1.1 MB', pg:31, sello:'FIRMADO'},
+];
+let docFilter='todos';
+function renderDocs(){
+  const box=document.getElementById('rDocs'); if(!box) return;
+  const list=DOCS.map((d,i)=>({...d,i:i})).filter(d=>docFilter==='todos'||d.tipo===docFilter);
+  box.innerHTML=list.map(d=>
+    '<div class="doc"><div class="ic">'+((d.f==='XLSX')?'▦':'▤')+'</div>'+
+    '<div style="flex:1"><div class="dt">'+d.t+'</div>'+
+    '<div class="dm">'+d.per+' · '+d.f+' · '+d.kb+(d.pg!=='—'?(' · '+d.pg+' pág'):'')+' · '+d.sello+'</div></div>'+
+    '<span class="dbtn" data-doc="'+d.i+'">Ver ›</span></div>').join('') || '<div style="color:var(--dim2);font-size:12px;padding:10px 0">Sin documentos en este filtro</div>';
+  box.querySelectorAll('.dbtn').forEach(b=>b.addEventListener('click',()=>openDoc(DOCS[parseInt(b.dataset.doc,10)])));
+}
+document.querySelectorAll('#docChips .chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('#docChips .chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); docFilter=c.dataset.f; renderDocs();
+}));
+
+function openDoc(d){
+  const H=hash(d.t+d.per);
+  const money=n=>'$'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  const rows=[];
+  const syms=['SPX','NDX','BRENT','GOLD','UST10Y','EUR/USD'];
+  let tot=0;
+  for(let i=0;i<6;i++){
+    const v=(H>>(i*3))%480000/100+8000; tot+=v;
+    const pct=((H>>i)%360)/100;
+    rows.push('<tr><td>'+syms[i]+'</td><td class="r">'+money(v)+'</td><td class="r" style="color:'+(i%3===0?'#b91c1c':'#15803d')+'">'+(i%3===0?'-':'+')+pct.toFixed(2)+'%</td><td class="r">'+(((H>>(i+2))%900)/10+5).toFixed(1)+'%</td></tr>');
+  }
+  const lid='NW-'+String(H%899999+100000);
+  document.getElementById('docBody').innerHTML=
+   '<div class="paper">'+
+     '<h1>Northwind Capital</h1>'+
+     '<div class="ph">'+d.t.toUpperCase()+' · '+d.per+'</div>'+
+     '<div style="display:flex;justify-content:space-between;align-items:center">'+
+       '<div style="font-size:10px;color:#6b7280;font-family:var(--mono)">ID documento<br><b style="color:#12161d;font-size:11px">'+lid+'</b></div>'+
+       '<span class="stamp">'+d.sello+'</span>'+
+     '</div>'+
+     '<hr>'+
+     '<table><thead><tr><th>Instrumento</th><th class="r">Valor mercado</th><th class="r">Var. periodo</th><th class="r">Peso</th></tr></thead><tbody>'+
+       rows.join('')+
+       '<tr class="tot"><td>TOTAL PORTAFOLIO</td><td class="r">'+money(tot)+'</td><td class="r">+'+((H%420)/100).toFixed(2)+'%</td><td class="r">100.0%</td></tr>'+
+     '</tbody></table>'+
+     '<hr>'+
+     '<div style="font-size:11px;line-height:1.6;color:#374151">Este documento fue generado automáticamente por el sistema de la mesa y verificado con sello digital. Las cifras están expresadas en dólares estadounidenses y pueden diferir de los saldos liquidados por diferencias de valuación al cierre.</div>'+
+     '<div class="ft">Impreso el '+new Date().toLocaleString()+' · Página 1 de '+d.pg+'<br>Northwind Capital © 2026 · Documento confidencial</div>'+
+   '</div>';
+  document.getElementById('docModal').classList.add('show');
+}
+document.getElementById('closeDoc').onclick=()=>document.getElementById('docModal').classList.remove('show');
+document.getElementById('docModal').addEventListener('click',e=>{ if(e.target.id==='docModal') e.currentTarget.classList.remove('show'); });
+renderDocs();
 
 /* ===== UI ===== */
 document.getElementById('fab').onclick=()=>{ document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
