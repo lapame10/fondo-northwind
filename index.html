@@ -135,6 +135,10 @@
   .note .nm{font-size:9.5px;color:var(--dim2);font-family:var(--mono);margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);
     display:flex;justify-content:space-between;}
   .closenote{color:var(--dim);cursor:pointer;font-weight:700;}
+  .anbtn{font-size:10.5px;font-weight:800;font-family:var(--mono);border-radius:7px;padding:6px 10px;cursor:pointer;}
+  .anbtn.edit{color:var(--accent);background:rgba(74,158,255,.09);border:1px solid rgba(74,158,255,.35);}
+  .anbtn.del{color:var(--red);background:rgba(229,72,77,.09);border:1px solid rgba(229,72,77,.35);}
+  .modtag{font-size:9px;color:var(--amber);font-family:var(--mono);font-weight:800;}
 
   /* ── fab ── */
   #fab{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:40;
@@ -421,10 +425,20 @@ function render(){
       '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
       '<div class="st '+(isDone?'done':'pend')+'">'+(isDone?'EJECUTADA':'PENDIENTE')+'</div>';
     const note=document.createElement('div'); note.className='note';
+    const mio=String(m.a||'')===String(user||'');
     note.innerHTML='<div class="nl">Nota del analista <span>'+autorLabel(m.a)+' · '+autorBadge(m.a)+'</span></div>'+
       '<div class="nt">'+txt.replace(/</g,'&lt;')+'</div>'+
+      (m.e?'<div class="modtag">MODIFICADA '+new Date(m.e).toLocaleDateString()+'</div>':'')+
+      (mio?'<div style="display:flex;gap:8px;margin-top:10px">'+
+        '<span class="anbtn edit">✎ Modificar</span>'+
+        '<span class="anbtn del">⨯ Anular orden</span></div>':'')+
       '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(m.c||'')+'</span>'+
       '<span class="closenote">✕ cerrar</span></div>';
+    note.querySelectorAll('.anbtn').forEach(b=>b.addEventListener('click',function(ev){
+      ev.stopPropagation();
+      if(b.classList.contains('edit')) editMsg(m.id);
+      else delMsg(m.id);
+    }));
     let taps=0,tapT=null;
     row.addEventListener('contextmenu',e=>e.preventDefault());
     row.addEventListener('click',function(e){
@@ -451,12 +465,42 @@ async function markRead(id, rowEl){
   document.getElementById('kPend').textContent=total-done;
   try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
 }
+let editingId=null;
+
 async function send(t){
   const body=(t||'').trim(); if(!body) return;
+  if(editingId){
+    const id=editingId; editingId=null;
+    msgs[id]={...msgs[id], c:enc(body), e:Date.now()};
+    render();
+    try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
+    return;
+  }
   const id='o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   const m={c:enc(body), a:user||AUTOR, t:Date.now(), r:0};
   msgs[id]=m; render();
   try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
+}
+
+/* modificar una orden ya emitida (solo la propia) */
+function editMsg(id){
+  const m=msgs[id]; if(!m) return;
+  if(String(m.a||'')!==String(user||'')) return;
+  editingId=id;
+  document.getElementById('txt').value=dec(m.c)||'';
+  document.querySelector('.sheet h2').textContent='Modificar orden';
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('txt').focus();
+  closeNotes();
+}
+
+/* anular (borrar) una orden (solo la propia) */
+async function delMsg(id){
+  const m=msgs[id]; if(!m) return;
+  if(String(m.a||'')!==String(user||'')) return;
+  if(!confirm('¿Anular esta orden? No se puede deshacer.')) return;
+  delete msgs[id]; closeNotes(); render();
+  try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'DELETE'}); }catch(e){}
 }
 
 /* ===== cerrar notas ===== */
@@ -589,10 +633,11 @@ document.getElementById('docModal').addEventListener('click',e=>{ if(e.target.id
 renderDocs();
 
 /* ===== UI ===== */
-document.getElementById('fab').onclick=()=>{ document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
-document.getElementById('cancel').onclick=()=>{ document.getElementById('modal').classList.remove('show'); document.getElementById('txt').value=''; };
+document.getElementById('fab').onclick=()=>{ editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
+document.getElementById('cancel').onclick=()=>{ editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('modal').classList.remove('show'); document.getElementById('txt').value=''; };
 document.getElementById('send').onclick=async()=>{
   await send(document.getElementById('txt').value);
+  editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado';
   document.getElementById('txt').value=''; document.getElementById('modal').classList.remove('show');
 };
 document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id==='modal') document.getElementById('modal').classList.remove('show'); });
