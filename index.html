@@ -245,7 +245,8 @@
     <h3>Cómo se usa</h3>
     <ul>
       <li>＋ <b>Nueva orden</b>: escribes tu mensaje (se guarda cifrado).</li>
-      <li>Tú operas como <b id="miuser">—</b> (se asigna solo, queda en este teléfono).</li>
+      <li>Tú operas como <b id="miuser">—</b> <span id="chguser" style="color:var(--accent);text-decoration:underline;cursor:pointer">cambiar</span><br>
+        <span style="font-size:11px;color:var(--dim2)">Queda guardado en este dispositivo. Para usar el mismo número en otro dispositivo, abre el link con <b style="color:var(--accent)">?op=1</b> (o 2, 3...).</span></li>
       <li>Toca <b>3 veces</b> el instrumento: se revela el mensaje.</li>
       <li>Al leerlo queda <b>EJECUTADA</b> (acuse).</li>
       <li>Toca fuera o <b>✕</b> para cerrar la nota.</li>
@@ -318,6 +319,11 @@ const DIAS_CICLO=20;   // los mensajes se reinician cada 20 dias
 /* ===== IDENTIDAD (usuario 1, 2, 3...) ===== */
 const USER_KEY='nw_user';
 let user=localStorage.getItem(USER_KEY)||'';
+(function(){
+  // permite fijar la identidad desde la URL:  ...?op=2
+  const m=location.search.match(/[?&]op=(\d+)/);
+  if(m){ user='u'+m[1]; try{ localStorage.setItem(USER_KEY,user); }catch(e){} }
+})();
 function autorLabel(a){
   if(!a) return ETIQUETA+' —';
   const s=String(a);
@@ -500,6 +506,14 @@ document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id===
     if(n>=3){ n=0; document.getElementById('help').classList.add('show'); } };
   document.getElementById('help').onclick=()=>document.getElementById('help').classList.remove('show');
   const el=document.getElementById('miuser'); if(el&&user) el.textContent=autorLabel(user);
+  const ch=document.getElementById('chguser');
+  if(ch) ch.onclick=function(ev){
+    ev.stopPropagation();
+    const n=parseInt(String(user||'u1').slice(1),10)||1;
+    const next=(n%6)+1;
+    user='u'+next; try{ localStorage.setItem(USER_KEY,user); }catch(e){}
+    if(el) el.textContent=autorLabel(user);
+  };
 })();
 
 load();
