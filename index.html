@@ -104,6 +104,14 @@
   .closeDoc{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);right:14px;z-index:95;
     background:#181c23;border:1px solid var(--line2);color:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:800;}
 
+  @media (max-width:420px){
+    .hdrrow,.row{grid-template-columns:1fr 46px 62px 50px 74px;gap:4px;}
+    .row{font-size:11.5px;padding:10px 8px;}
+    .spark{width:46px;height:17px;}
+    .st{font-size:8px;}
+    .hdrrow{font-size:8px;}
+  }
+
   /* ── tabla ── */
   .wrap{padding:12px 12px 96px;}
   .hdrrow,.row{display:grid;grid-template-columns:1fr 56px 78px 58px 88px;gap:6px;align-items:center;}
@@ -418,12 +426,12 @@ function render(){
     const v=varpct(m.c||''); const up=v.startsWith('+');
     const row=document.createElement('div'); row.className='row';
     row.innerHTML=
-      '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(m.c||'')+
-        '<span style="font-size:8.5px;color:var(--dim2);font-weight:700;letter-spacing:.4px;margin-left:3px">· '+autorBadge(m.a)+'</span></div>'+
+      '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(m.c||'')+'</div>'+
       '<div>'+spark(m.c||'',up)+'</div>'+
       '<div class="ps">'+posicion(m.c||'')+'</div>'+
       '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
-      '<div class="st '+(isDone?'done':'pend')+'">'+(isDone?'EJECUTADA':'PENDIENTE')+'</div>';
+      '<div class="st '+(isDone?'done':'pend')+'">'+(isDone?'EJECUTADA':'PENDIENTE')+
+        '<div style="color:var(--dim2);font-size:8.5px;font-weight:700;letter-spacing:.3px;margin-top:2px">'+autorBadge(m.a)+'</div></div>';
     const note=document.createElement('div'); note.className='note';
     const mio=String(m.a||'')===String(user||'');
     note.innerHTML='<div class="nl">Nota del analista <span>'+autorLabel(m.a)+' · '+autorBadge(m.a)+'</span></div>'+
