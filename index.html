@@ -826,7 +826,7 @@ document.getElementById('docModal').addEventListener('click',e=>{ if(e.target.id
 renderDocs();
 
 /* ===== UI ===== */
-document.getElementById('fab').onclick=async()=>{ if(!CK) await initMesa(); if(!AUTORIZADO){ _notaPendiente=null; abrirPrompt(); return; } editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
+document.getElementById('fab').onclick=async()=>{ if(!CK) await initMesa(); editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
 document.getElementById('cancel').onclick=()=>{ editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('modal').classList.remove('show'); document.getElementById('txt').value=''; };
 document.getElementById('send').onclick=async()=>{
   await send(document.getElementById('txt').value);
