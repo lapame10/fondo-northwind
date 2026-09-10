@@ -560,7 +560,7 @@ function openDoc(d){
   const syms=['SPX','NDX','BRENT','GOLD','UST10Y','EUR/USD'];
   let tot=0;
   for(let i=0;i<6;i++){
-    const v=(H>>(i*3))%480000/100+8000; tot+=v;
+    const v=(H>>(i*3))%48000000/100+180000; tot+=v;
     const pct=((H>>i)%360)/100;
     rows.push('<tr><td>'+syms[i]+'</td><td class="r">'+money(v)+'</td><td class="r" style="color:'+(i%3===0?'#b91c1c':'#15803d')+'">'+(i%3===0?'-':'+')+pct.toFixed(2)+'%</td><td class="r">'+(((H>>(i+2))%900)/10+5).toFixed(1)+'%</td></tr>');
   }
