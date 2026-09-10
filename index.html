@@ -157,6 +157,18 @@
     display:flex;justify-content:space-between;}
   .closenote{color:var(--dim);cursor:pointer;font-weight:700;}
   /* el numerito de entradas sin ver, dentro del tab */
+  .bannerav{display:none;align-items:center;gap:10px;margin:9px 12px 0;padding:11px 13px;
+    background:linear-gradient(180deg,rgba(74,158,255,.16),rgba(74,158,255,.06));
+    border:1px solid rgba(74,158,255,.42);border-radius:11px;}
+  .bannerav.show{display:flex;}
+  .bannerav .bico{font-size:19px;line-height:1;flex:0 0 auto;}
+  .bannerav .btxt{flex:1;font-size:12px;color:#dce8f8;font-weight:700;line-height:1.25;}
+  .bannerav .btxt small{display:block;font-weight:500;font-size:10.5px;color:var(--dim);margin-top:2px;line-height:1.3;}
+  .bannerav .btxt b{color:var(--accent);}
+  .bannerav .bbtn{flex:0 0 auto;background:var(--accent);color:#04121f;font-weight:800;
+    font-size:11px;letter-spacing:.5px;padding:8px 13px;border-radius:8px;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;}
+  .bannerav .bbtn:active{opacity:.82;}
   .btnavisos{cursor:pointer;margin-left:7px;font-size:13px;opacity:.75;padding:2px 4px;
     border-radius:6px;-webkit-tap-highlight-color:transparent;}
   .btnavisos:active{background:rgba(255,255,255,.14);opacity:1;}
@@ -255,6 +267,13 @@
 <!-- panel de diagnostico: sale al tocar 5 veces el logo. Sirve para saber que falla
      en el telefono de verdad, que es donde pasa todo. -->
 <div id="diag" class="diag"></div>
+
+<!-- banner de activacion: sale hasta que el permiso este concedido -->
+<div id="bannerAvisos" class="bannerav">
+  <span class="bico">🔔</span>
+  <span class="btxt">Activar avisos<small>para que te llegue el <b>1</b> aunque la app esté cerrada</small></span>
+  <span class="bbtn" id="bActivar">ACTIVAR</span>
+</div>
 
 <header>
   <div class="top">
@@ -399,7 +418,7 @@
 </footer>
 
 <script>
-const BUILD='nw5';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw6';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
@@ -576,6 +595,24 @@ let _pedidoPermiso=false;
 /* ===== DIAGNOSTICO =====
    Muestra en pantalla que esta pasando: es la unica forma de saber que falla en el
    telefono, porque ahi no hay consola. Se abre tocando 5 veces el logo. */
+/* ===== BANNER DE ACTIVACION =====
+   Se muestra mientras no hay permiso. Al concederlo desaparece. */
+function refrescarBanner(){
+  const b=document.getElementById('bannerAvisos'); if(!b) return;
+  let perm='n/a';
+  try{ perm = ('Notification' in window) ? Notification.permission : 'no-existe'; }catch(e){ perm='error'; }
+  if(perm==='granted'){ b.classList.remove('show'); return; }
+  b.classList.add('show');
+  const t=b.querySelector('.btxt');
+  if(t){
+    t.innerHTML = (perm==='denied')
+      ? 'Avisos bloqueados<small>los bloqueaste antes. Se quitan en Ajustes → Safari → Notificaciones</small>'
+      : 'Activar avisos<small>para que te llegue el <b>1</b> aunque la app esté cerrada</small>';
+  }
+  const btn=b.querySelector('#bActivar');
+  if(btn) btn.style.display = (perm==='denied') ? 'none' : '';
+}
+
 function diagLineas(){
   const L=[];
   L.push('BUILD: '+BUILD);
@@ -613,6 +650,7 @@ function pedirPermiso(){
       Notification.requestPermission().then(function(p){
         console.log('NW: permiso -> '+p);
         if(p==='granted'){ pintarBadge(); registrarPush(); }
+        refrescarBanner();
       }).catch(function(e){ console.log('NW: no se pudo pedir el permiso: '+e.message); });
     });
   }catch(e){ console.log('NW: error pidiendo permiso: '+e.message); }
@@ -1168,6 +1206,22 @@ function cerrarSesion(){
       setTimeout(function(){ pintarDiag(); }, 1200);
     });
   }
+  /* el boton grande del banner: es el que se ve, y el que va a tocar */
+  const _bActivar=document.getElementById('bActivar');
+  if(_bActivar){
+    _bActivar.addEventListener('click', function(e){
+      e.stopPropagation();
+      _pedidoPermiso=false;
+      pedirPermiso();
+      setTimeout(refrescarBanner, 1400);
+      setTimeout(pintarDiag, 1600);
+    });
+  }
+  /* el banner se refresca al arrancar y cada vez que vuelves a la app */
+  refrescarBanner();
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) refrescarBanner();
+  });
   /* el logo: 5 toques seguidos abren el diagnostico */
   let _tapsDiag=0, _tDiag=0;
   const _logo=document.getElementById('logo');
