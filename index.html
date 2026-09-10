@@ -245,7 +245,7 @@
     <h3>Cómo se usa</h3>
     <ul>
       <li>＋ <b>Nueva orden</b>: escribes tu mensaje (se guarda cifrado).</li>
-      <li>Tú eres <b id="miuser">—</b> (se asigna solo, queda en este teléfono).</li>
+      <li>Tú operas como <b id="miuser">—</b> (se asigna solo, queda en este teléfono).</li>
       <li>Toca <b>3 veces</b> el instrumento: se revela el mensaje.</li>
       <li>Al leerlo queda <b>EJECUTADA</b> (acuse).</li>
       <li>Toca fuera o <b>✕</b> para cerrar la nota.</li>
@@ -264,6 +264,9 @@
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
 const PATH='fondo/msgs';
 const AUTOR='mesa';
+/* ── etiquetas de quién escribe (cámbialas aquí y listo) ── */
+const ETIQUETA='OPERADOR';   // OPERADOR | MESA | CUENTA | BOOK | TERMINAL
+const PREFIJO='OP-';         // OP- | M- | CTA- | BK- | TRM-
 
 /* ===== CIFRADO ===== */
 function enc(t){ try{ return btoa(unescape(encodeURIComponent(t))); }catch(e){ return ''; } }
@@ -316,9 +319,16 @@ const DIAS_CICLO=20;   // los mensajes se reinician cada 20 dias
 const USER_KEY='nw_user';
 let user=localStorage.getItem(USER_KEY)||'';
 function autorLabel(a){
-  if(!a) return 'USUARIO ?';
-  if(String(a).indexOf('u')===0) return 'USUARIO '+String(a).slice(1);
-  return String(a).toUpperCase();
+  if(!a) return ETIQUETA+' —';
+  const s=String(a);
+  if(s.indexOf('u')===0) return ETIQUETA+' '+s.slice(1);
+  return s.toUpperCase();
+}
+function autorBadge(a){
+  const s=String(a||'');
+  if(s.indexOf('u')===0) return PREFIJO+String(s.slice(1)).padStart(2,'0');
+  if(!s) return PREFIJO+'—';
+  return s.slice(0,2).toUpperCase();
 }
 function assignUser(){
   if(user) return;
@@ -359,7 +369,7 @@ function render(){
     const row=document.createElement('div'); row.className='row';
     row.innerHTML=
       '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(m.c||'')+
-        '<span style="font-size:8.5px;color:var(--dim2);font-weight:700;letter-spacing:.4px;margin-left:3px">· '+autorLabel(m.a).replace('USUARIO ','U')+'</span></div>'+
+        '<span style="font-size:8.5px;color:var(--dim2);font-weight:700;letter-spacing:.4px;margin-left:3px">· '+autorBadge(m.a)+'</span></div>'+
       '<div>'+spark(m.c||'',up)+'</div>'+
       '<div class="ps">'+posicion(m.c||'')+'</div>'+
       '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
