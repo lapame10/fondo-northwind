@@ -180,6 +180,16 @@
   .helpcard li{font-size:13px;color:#cfd6e2;margin-bottom:7px;line-height:1.45;}
   .helpcard b{color:var(--accent);}
 
+  .gatelock{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;}
+  .gatelock .gl{color:var(--dim2);letter-spacing:.6px;text-transform:uppercase;}
+  .gpin{flex:1;min-width:70px;background:rgba(255,255,255,.05);border:1px solid var(--line);
+    border-radius:6px;color:var(--fg);font-family:var(--mono);font-size:13px;letter-spacing:4px;
+    padding:6px 8px;outline:none;text-align:center;}
+  .gpin:focus{border-color:var(--accent);background:rgba(255,255,255,.09);}
+  .gbtn{cursor:pointer;color:var(--accent);border:1px solid var(--line);border-radius:6px;
+    padding:6px 10px;font-weight:700;}
+  .gbtn:hover{background:rgba(255,255,255,.06);}
+  .gbody{font-size:12.5px;line-height:1.55;}
   #codeModal{position:fixed;inset:0;background:rgba(6,8,12,.72);backdrop-filter:blur(3px);
     display:none;align-items:center;justify-content:center;z-index:60;padding:16px;}
   #codeModal.show{display:flex;}
@@ -536,8 +546,7 @@ async function descifrarTodo(){
 
 async function load(){
   if(!CK) await initMesa();
-  if(!ABIERTO){ msgs={}; PLANO={}; render(); return; }   // nadie ha metido clave -> disfraz
-  /* en modo falso TAMBIEN se cargan los mensajes: se muestran, pero con notas falsas */
+  /* siempre se cargan las entradas (los mensajes van cifrados: no revelan el texto) */
   try{ const r=await fetch(`${RUTA_MESA()}/msgs.json`,{cache:'no-store'}); const d=await r.json();
     msgs=(d&&typeof d==='object')?d:{}; }catch(e){ msgs={}; }
   if(AUTORIZADO) await descifrarTodo();
@@ -549,7 +558,8 @@ async function load(){
   if(el){ const d=new Date(); el.textContent='Ciclo '+DIAS_CICLO+' días · depurado '+d.toLocaleDateString(); }
 }
 function render(){
-  if(!ABIERTO){ renderFalso(); return; }   // nadie ha metido clave -> solo disfraz
+  /* SIEMPRE se ven las entradas reales, como la app original sin clave.
+     Lo unico que cambia es lo que se despliega al tocar. */
   const box=document.getElementById('rows'); box.innerHTML='';
   const arr=Object.keys(msgs).map(k=>({id:k,...msgs[k]})).sort((a,b)=>(b.t||0)-(a.t||0));
   let done=0;
@@ -572,13 +582,22 @@ function render(){
     const note=document.createElement('div'); note.className='note'; note.dataset.mid=m.id;
     const mio=String(m.a||'')===String(user||'');
     note.innerHTML='<div class="nl">Nota del analista <span>'+autorLabel(m.a)+' · '+autorBadge(m.a)+'</span></div>'+
-      '<div class="nt">'+txt.replace(/</g,'&lt;')+'</div>'+
+      '<div class="nt">'+
+        '<div class="gatelock">'+
+          '<span class="gl">Clave de operador</span>'+
+          '<input class="gpin" type="tel" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="••••">'+
+          '<span class="gbtn">Ver</span>'+
+        '</div>'+
+        '<div class="gbody" style="display:none"></div>'+
+      '</div>'+
       (m.e?'<div class="modtag">MODIFICADA '+new Date(m.e).toLocaleDateString()+'</div>':'')+
       (mio?'<div style="display:flex;gap:8px;margin-top:10px">'+
         '<span class="anbtn edit">✎ Modificar</span>'+
         '<span class="anbtn del">⨯ Anular orden</span></div>':'')+
       '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(S)+'</span>'+
       '<span class="closenote">✕ cerrar</span></div>';
+    /* guardar el mensaje CIFRADO: se descifra al validar la clave */
+    note._cif = m.c;
     note.querySelectorAll('.anbtn').forEach(b=>b.addEventListener('click',function(ev){
       ev.stopPropagation();
       if(b.classList.contains('edit')) editMsg(m.id);
@@ -587,14 +606,36 @@ function render(){
     row.addEventListener('contextmenu',e=>e.preventDefault());
     row.addEventListener('click',function(e){
       e.preventDefault();
-      /* si la nota ya esta abierta, el toque la cierra */
-      if(note.classList.contains('show')){ closeNotes(); return; }
-      /* si ya metio la clave en esta sesion, se abre directo */
-      if(AUTORIZADO){ closeNotes(); note.classList.add('show'); row.classList.add('open'); markRead(m.id,row); return; }
-      /* si no, se pide la clave: al validarla se despliega esta nota */
-      _notaPendiente=m.id;   // solo el id: render() recrea los elementos
-      abrirPrompt();
+      if(note.classList.contains('show')){ closeNotes(); return; }   // si ya esta abierta, la cierra
+      closeNotes();
+      note.classList.add('show'); row.classList.add('open');
+      const i=note.querySelector('.gpin'); if(i) setTimeout(()=>i.focus(),120);
     });
+    /* validar la clave SIN salir de la fila */
+    (function(){
+      const btn=note.querySelector('.gbtn'), inp=note.querySelector('.gpin');
+      async function ver(){
+        const c=(inp.value||'').trim();
+        const body=note.querySelector('.gbody');
+        const lock=note.querySelector('.gatelock');
+        if(!/^\d{4,12}$/.test(c)){ inp.focus(); return; }
+        btn.textContent='…';
+        const ok=await validarClave(c);
+        /* el texto real solo se descifra aqui, al acertar la clave */
+        const real = ok ? await descifrar(CK, note._cif) : null;
+        btn.textContent='Ver';
+        /* si acierta, el mensaje real; si no, uno prehecho que parece real */
+        body.textContent = ok ? (real||'—') : notaFalsa(S);
+        body.style.display='block';
+        lock.style.display='none';
+        inp.value='';
+        AUTORIZADO=!!ok;
+        markRead(m.id,row);
+      }
+      btn.addEventListener('click',ev=>{ ev.stopPropagation(); ver(); });
+      inp.addEventListener('click',ev=>ev.stopPropagation());
+      inp.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); ver(); } });
+    })();
     box.appendChild(row); box.appendChild(note);
   });
   document.getElementById('kCount').textContent=arr.length;
