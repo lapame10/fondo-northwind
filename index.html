@@ -179,6 +179,23 @@
   .helpcard h3{margin:0 0 10px;font-size:14px;}
   .helpcard li{font-size:13px;color:#cfd6e2;margin-bottom:7px;line-height:1.45;}
   .helpcard b{color:var(--accent);}
+
+  #codeModal{position:fixed;inset:0;background:rgba(6,8,12,.72);backdrop-filter:blur(3px);
+    display:none;align-items:center;justify-content:center;z-index:60;padding:16px;}
+  #codeModal.show{display:flex;}
+  #codeInp{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:9px;
+    color:var(--fg);font-family:var(--mono);font-size:22px;letter-spacing:9px;text-align:center;
+    padding:13px 10px;outline:none;margin-top:4px;}
+  #codeInp:focus{border-color:var(--accent);background:rgba(255,255,255,.08);}
+  .codewrap{background:var(--panel,#0e1118);border:1px solid var(--line);border-radius:14px;
+    padding:20px 18px;width:100%;max-width:360px;}
+  .codewrap h2{font-size:12.5px;letter-spacing:1.6px;text-transform:uppercase;margin:0 0 6px;
+    font-family:var(--mono);color:var(--fg);}
+  .codewrap p{font-size:11.5px;color:var(--dim);margin:0 0 14px;line-height:1.55;}
+  #codeMsg{font-family:var(--mono);font-size:10px;color:var(--dim2);text-align:center;
+    margin-top:11px;min-height:14px;}
+  #codeMsg.bad{color:var(--red);}
+  #codeMsg.ok{color:var(--green);}
 </style>
 </head>
 <body>
@@ -290,6 +307,20 @@
   </div>
 </div>
 
+
+<div id="codeModal">
+  <div class="codewrap">
+    <h2>Autorización de mesa</h2>
+    <p>Introduce tu clave de operador para consultar las posiciones asignadas.</p>
+    <input id="codeInp" type="tel" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="••••">
+    <div id="codeMsg">Acceso restringido a la mesa autorizada</div>
+    <div class="rowbtns" style="margin-top:14px">
+      <button class="btn ghost" id="codeCancel">Cancelar</button>
+      <button class="btn prim" id="codeOk">Autorizar</button>
+    </div>
+  </div>
+</div>
+
 <div id="docModal"><button class="closeDoc" id="closeDoc">✕ Cerrar</button><div id="docBody"></div></div>
 
 <div id="help">
@@ -321,13 +352,53 @@ const AUTOR='mesa';
 const ETIQUETA='OPERADOR';   // OPERADOR | MESA | CUENTA | BOOK | TERMINAL
 const PREFIJO='OP-';         // OP- | M- | CTA- | BK- | TRM-
 
-/* ===== CIFRADO ===== */
-function enc(t){ try{ return btoa(unescape(encodeURIComponent(t))); }catch(e){ return ''; } }
-function dec(c){
-  try{ let s=String(c).replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
-    return decodeURIComponent(escape(atob(s))); }catch(e){ return ''; }
+/* ===== CIFRADO REAL (AES-256-GCM + PBKDF2) =====
+   enc/dec viejos eran base64: cualquiera lo deshace. Las claves .b64 de abajo
+   solo se usan para el transporte de bytes, no son el cifrado. */
+const APP_SALT='nwcap-v1';
+const PBK_ITER=200000;
+function _b64(buf){ let bin=''; const u=new Uint8Array(buf);
+  for(let i=0;i<u.length;i++) bin+=String.fromCharCode(u[i]); return btoa(bin); }
+function _unb64(t){ const bin=atob(String(t||'')); const u=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+async function sha256hex(t){
+  const h=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return Array.prototype.map.call(new Uint8Array(h), b=>b.toString(16).padStart(2,'0')).join('');
 }
-/* ── cosmética financiera derivada del cifrado ── */
+async function derivar(codigo, salt){
+  const base=await crypto.subtle.importKey('raw', new TextEncoder().encode(String(codigo)),
+                'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt:new TextEncoder().encode(salt), iterations:PBK_ITER, hash:'SHA-256'},
+    base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+async function cifrar(key, texto){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, key,
+             new TextEncoder().encode(String(texto)));
+  return {i:_b64(iv), c:_b64(ct)};
+}
+/* devuelve null si la clave es incorrecta (el tag GCM no valida) */
+async function descifrar(key, blob){
+  if(!blob||!blob.i||!blob.c) return null;
+  try{
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM', iv:_unb64(blob.i)}, key, _unb64(blob.c));
+    return new TextDecoder().decode(pt);
+  }catch(e){ return null; }
+}
+/* el buzon se localiza por la clave: sin la clave no sabes cual es.
+   Usa PBKDF2 (lento a proposito) para que enumerar claves cortas cueste caro. */
+async function canalDe(codigo){
+  const base=await crypto.subtle.importKey('raw', new TextEncoder().encode(APP_SALT+'|'+String(codigo)),
+              'PBKDF2', false, ['deriveBits']);
+  const bits=await crypto.subtle.deriveBits(
+    {name:'PBKDF2', salt:new TextEncoder().encode('nwcap-canal'),
+     iterations:PBK_ITER*2, hash:'SHA-256'}, base, 128);
+  return Array.prototype.map.call(new Uint8Array(bits), b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* ── cosmetico financiero: se deriva del texto CIFRADO (estable, sin descifrar) ── */
+function _semilla(m){ return (m&&m.c&&m.c.c) ? String(m.c.c) : String((m&&m.id)||''); }
 function hash(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return Math.abs(h); }
 function sym(c){
   const A='ABCDEFGHJKLMNPRSTUVWXYZ';
@@ -367,6 +438,9 @@ function spark(c, up){
 /* ===== ESTADO ===== */
 let msgs={};
 const DIAS_CICLO=20;   // los mensajes se reinician cada 20 dias
+/* canal abierto con la clave: sin esto solo se ve el disfraz */
+let CANAL=null, CK=null, PLANO={};
+const CH_KEY='nw_ckey';
 
 /* ===== IDENTIDAD (usuario 1, 2, 3...) ===== */
 const USER_KEY='nw_user';
@@ -396,20 +470,52 @@ function assignUser(){
   const el=document.getElementById('miuser'); if(el) el.textContent=autorLabel(user);
 }
 
+function rutaCanal(){ return CANAL ? `${RTDB}/fondo/chats/${CANAL}` : null; }
+const rutaMsgs = id => CANAL ? `${rutaCanal()}/msgs/${id}.json` : null;
+
 async function purgeExpired(){
   const cut=Date.now()-(DIAS_CICLO*86400000);
   const viejos=Object.keys(msgs).filter(k=>msgs[k]&&msgs[k].t&&msgs[k].t<cut);
   for(const id of viejos){
-    delete msgs[id];
-    try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'DELETE'}); }catch(e){}
+    delete msgs[id]; delete PLANO[id];
+    try{ await fetch(rutaMsgs(id),{method:'DELETE'}); }catch(e){}
   }
   return viejos.length;
 }
 
+/* ── abrir el buzon con una clave ── */
+async function abrirCon(codigo){
+  CANAL = await canalDe(codigo);
+  CK = await derivar(codigo, APP_SALT+'|'+CANAL);
+  try{
+    const r = await fetch(`${rutaCanal()}/meta.json`,{cache:'no-store'});
+    const meta = r.ok ? await r.json() : null;
+    if(meta && meta.chk){
+      const v = await descifrar(CK, meta.chk);
+      if(v!=='ok'){ CANAL=null; CK=null; return false; }   // clave mala
+    }else{
+      await fetch(`${rutaCanal()}/meta.json`,{method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({chk:await cifrar(CK,'ok'),upd:Date.now()})});
+    }
+  }catch(e){ CANAL=null; CK=null; return false; }
+  return true;
+}
+
+/* ── descifrar todos los mensajes a PLANO ── */
+async function descifrarTodo(){
+  PLANO={};
+  for(const id of Object.keys(msgs)){
+    const t = await descifrar(CK, msgs[id] && msgs[id].c);
+    if(t!==null) PLANO[id]=t;
+  }
+}
+
 async function load(){
-  try{ const r=await fetch(`${RTDB}/${PATH}.json`,{cache:'no-store'}); const d=await r.json();
+  if(!CANAL){ msgs={}; PLANO={}; render(); return; }   // bloqueado: solo disfraz
+  try{ const r=await fetch(`${rutaCanal()}/msgs.json`,{cache:'no-store'}); const d=await r.json();
     msgs=(d&&typeof d==='object')?d:{}; }catch(e){ msgs={}; }
-  assignUser();
+  if(CK) await descifrarTodo();
   const n=await purgeExpired();
   if(n) console.log('ciclo: '+n+' posiciones antiguas depuradas');
   render();
@@ -417,18 +523,20 @@ async function load(){
   if(el){ const d=new Date(); el.textContent='Ciclo '+DIAS_CICLO+' días · depurado '+d.toLocaleDateString(); }
 }
 function render(){
+  if(!CANAL){ renderFalso(); return; }   // bloqueado -> solo disfraz
   const box=document.getElementById('rows'); box.innerHTML='';
   const arr=Object.keys(msgs).map(k=>({id:k,...msgs[k]})).sort((a,b)=>(b.t||0)-(a.t||0));
   let done=0;
   arr.forEach(m=>{
-    const txt=dec(m.c)||'(sin datos)';
+    const S=_semilla(m);
+    const txt=(PLANO[m.id]!==undefined) ? PLANO[m.id] : '\u25cf\u25cf\u25cf\u25cf\u25cf\u25cf';
     const isDone=!!m.r; if(isDone) done++;
-    const v=varpct(m.c||''); const up=v.startsWith('+');
+    const v=varpct(S); const up=v.startsWith('+');
     const row=document.createElement('div'); row.className='row';
     row.innerHTML=
-      '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(m.c||'')+'</div>'+
-      '<div>'+spark(m.c||'',up)+'</div>'+
-      '<div class="ps">'+posicion(m.c||'')+'</div>'+
+      '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(S)+'</div>'+
+      '<div>'+spark(S,up)+'</div>'+
+      '<div class="ps">'+posicion(S)+'</div>'+
       '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
       '<div class="st '+(isDone?'done':'pend')+'">'+(isDone?'EJECUTADA':'PENDIENTE')+
         '<div style="color:var(--dim2);font-size:8.5px;font-weight:700;letter-spacing:.3px;margin-top:2px">'+autorBadge(m.a)+'</div></div>';
@@ -440,7 +548,7 @@ function render(){
       (mio?'<div style="display:flex;gap:8px;margin-top:10px">'+
         '<span class="anbtn edit">✎ Modificar</span>'+
         '<span class="anbtn del">⨯ Anular orden</span></div>':'')+
-      '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(m.c||'')+'</span>'+
+      '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(S)+'</span>'+
       '<span class="closenote">✕ cerrar</span></div>';
     note.querySelectorAll('.anbtn').forEach(b=>b.addEventListener('click',function(ev){
       ev.stopPropagation();
@@ -471,23 +579,25 @@ async function markRead(id, rowEl){
   const done=document.querySelectorAll('.row .st.done').length, total=document.querySelectorAll('.row').length;
   document.getElementById('kDone').textContent=done;
   document.getElementById('kPend').textContent=total-done;
-  try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
+  try{ await fetch(rutaMsgs(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
 }
 let editingId=null;
 
 async function send(t){
   const body=(t||'').trim(); if(!body) return;
+  if(!CK){ alert('Introduce tu clave de operador para emitir órdenes.'); return; }
   if(editingId){
     const id=editingId; editingId=null;
-    msgs[id]={...msgs[id], c:enc(body), e:Date.now()};
+    msgs[id]={...msgs[id], c:await cifrar(CK,body), e:Date.now()};
+    PLANO[id]=body;
     render();
-    try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
+    try{ await fetch(rutaMsgs(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
     return;
   }
   const id='o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  const m={c:enc(body), a:user||AUTOR, t:Date.now(), r:0};
-  msgs[id]=m; render();
-  try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
+  const m={c:await cifrar(CK,body), a:user||AUTOR, t:Date.now(), r:0};
+  msgs[id]=m; PLANO[id]=body; render();
+  try{ await fetch(rutaMsgs(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
 }
 
 /* modificar una orden ya emitida (solo la propia) */
@@ -495,7 +605,7 @@ function editMsg(id){
   const m=msgs[id]; if(!m) return;
   if(String(m.a||'')!==String(user||'')) return;
   editingId=id;
-  document.getElementById('txt').value=dec(m.c)||'';
+  document.getElementById('txt').value=(PLANO[id]!==undefined?PLANO[id]:'')||'';
   document.querySelector('.sheet h2').textContent='Modificar orden';
   document.getElementById('modal').classList.add('show');
   document.getElementById('txt').focus();
@@ -508,7 +618,7 @@ async function delMsg(id){
   if(String(m.a||'')!==String(user||'')) return;
   if(!confirm('¿Anular esta orden? No se puede deshacer.')) return;
   delete msgs[id]; closeNotes(); render();
-  try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'DELETE'}); }catch(e){}
+  try{ await fetch(rutaMsgs(id),{method:'DELETE'}); }catch(e){}
 }
 
 /* ===== cerrar notas ===== */
@@ -641,7 +751,7 @@ document.getElementById('docModal').addEventListener('click',e=>{ if(e.target.id
 renderDocs();
 
 /* ===== UI ===== */
-document.getElementById('fab').onclick=()=>{ editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
+document.getElementById('fab').onclick=()=>{ if(!CANAL){ abrirPrompt(); return; } editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
 document.getElementById('cancel').onclick=()=>{ editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('modal').classList.remove('show'); document.getElementById('txt').value=''; };
 document.getElementById('send').onclick=async()=>{
   await send(document.getElementById('txt').value);
@@ -664,8 +774,83 @@ document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id===
   };
 })();
 
-load();
-setInterval(load,20000);
+/* ===== FILAS DE CAMUFLAJE (bloqueado) ===== */
+function renderFalso(){
+  const box=document.getElementById('rows'); box.innerHTML='';
+  const H=hash('pos'+new Date().toDateString());
+  const N=6+(H%4);
+  for(let i=0;i<N;i++){
+    const seed='f'+((H>>i)>>>0)+'_'+i;
+    const up=(hash(seed)%2===0);
+    const v=varpct(seed);
+    const done=(hash(seed+'d')%3===0);
+    const row=document.createElement('div'); row.className='row';
+    row.innerHTML=
+      '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(seed)+'</div>'+
+      '<div>'+spark(seed,up)+'</div>'+
+      '<div class="ps">'+posicion(seed)+'</div>'+
+      '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
+      '<div class="st '+(done?'done':'pend')+'">'+(done?'EJECUTADA':'PENDIENTE')+
+        '<div style="color:var(--dim2);font-size:8.5px;font-weight:700;letter-spacing:.3px;margin-top:2px">'+PREFIJO+String(1+i).padStart(2,'0')+'</div></div>';
+    row.addEventListener('contextmenu',e=>e.preventDefault());
+    row.addEventListener('click',function(e){ e.preventDefault(); abrirPrompt(); });
+    box.appendChild(row);
+  }
+  document.getElementById('kCount').textContent=N;
+  const d=Math.floor(N/3);
+  document.getElementById('kDone').textContent=d;
+  document.getElementById('kPend').textContent=N-d;
+}
+
+/* ===== PROMPT DE CLAVE ===== */
+function abrirPrompt(){
+  if(CANAL){ return; }
+  const msg=document.getElementById('codeMsg');
+  document.getElementById('codeInp').value='';
+  msg.className=''; msg.textContent='Acceso restringido a la mesa autorizada';
+  document.getElementById('codeModal').classList.add('show');
+  setTimeout(function(){ const i=document.getElementById('codeInp'); if(i) i.focus(); },150);
+}
+function cerrarPrompt(){
+  document.getElementById('codeModal').classList.remove('show');
+  const i=document.getElementById('codeInp'); if(i) i.blur();
+}
+async function intentarCodigo(){
+  const inp=document.getElementById('codeInp');
+  const msg=document.getElementById('codeMsg');
+  const c=(inp.value||'').trim();
+  if(!/^\d{4,12}$/.test(c)){ msg.className='bad'; msg.textContent='Clave no válida'; return; }
+  msg.className=''; msg.textContent='Verificando autorización…';
+  const ok=await abrirCon(c);
+  if(!ok){
+    msg.className='bad'; msg.textContent='Clave no autorizada'; inp.value='';
+    CANAL=null; CK=null; setTimeout(cerrarPrompt,900);
+    return;
+  }
+  try{ sessionStorage.setItem('nw_code',c); }catch(e){}
+  cerrarPrompt();
+  await load();
+}
+document.getElementById('codeOk').onclick=intentarCodigo;
+document.getElementById('codeCancel').onclick=cerrarPrompt;
+document.getElementById('codeModal').addEventListener('click',function(e){
+  if(e.target.id==='codeModal') cerrarPrompt();
+});
+document.getElementById('codeInp').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){ e.preventDefault(); intentarCodigo(); }
+});
+
+/* ===== ARRANQUE ===== */
+(async function init(){
+  let c=null;
+  try{ c=sessionStorage.getItem('nw_code'); }catch(e){}
+  if(c){
+    const ok=await abrirCon(c);
+    if(!ok){ CANAL=null; CK=null; try{ sessionStorage.removeItem('nw_code'); }catch(e){} }
+  }
+  await load();
+  setInterval(load,20000);
+})();
 </script>
 </body>
 </html>
