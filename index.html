@@ -327,10 +327,11 @@
   <div class="helpcard">
     <h3>Cómo se usa</h3>
     <ul>
-      <li>＋ <b>Nueva orden</b>: escribes tu mensaje (se guarda cifrado).</li>
+      <li>＋ <b>Nueva orden</b>: escribes tu mensaje normal, sin clave.</li>
       <li>Tú operas como <b id="miuser">—</b> <span id="chguser" style="color:var(--accent);text-decoration:underline;cursor:pointer">cambiar</span><br>
         <span style="font-size:11px;color:var(--dim2)">Queda guardado en este dispositivo. Para usar el mismo número en otro dispositivo, abre el link con <b style="color:var(--accent)">?op=1</b> (o 2, 3...).</span></li>
       <li>Toca <b>3 veces</b> el instrumento: se revela el mensaje.</li>
+      <li>Tu sesión queda abierta en este dispositivo. <span id="logout" style="color:var(--accent);text-decoration:underline;cursor:pointer">Cerrar sesión</span></li>
       <li>Al leerlo queda <b>EJECUTADA</b> (acuse).</li>
       <li>Toca fuera o <b>✕</b> para cerrar la nota.</li>
     </ul>
@@ -438,9 +439,13 @@ function spark(c, up){
 /* ===== ESTADO ===== */
 let msgs={};
 const DIAS_CICLO=20;   // los mensajes se reinician cada 20 dias
-/* canal abierto con la clave: sin esto solo se ve el disfraz */
-let CANAL=null, CK=null, PLANO={};
-const CH_KEY='nw_ckey';
+/* Version PAM: los mensajes viven en un buzon de mesa y se cifran con una
+   clave de mesa. La clave del operador solo AUTORIZA la lectura. */
+let AUTORIZADO=false;        // ha metido una clave valida
+let CK=null;                 // clave de MESA (cifra/descifra los mensajes)
+let CLAVE_MESA_STR='nwcap-mesa-v1';
+let PLANO={};
+async function initMesa(){ CK = await derivar(CLAVE_MESA_STR, 'nwcap-mesa'); }
 
 /* ===== IDENTIDAD (usuario 1, 2, 3...) ===== */
 const USER_KEY='nw_user';
@@ -470,8 +475,8 @@ function assignUser(){
   const el=document.getElementById('miuser'); if(el) el.textContent=autorLabel(user);
 }
 
-function rutaCanal(){ return CANAL ? `${RTDB}/fondo/chats/${CANAL}` : null; }
-const rutaMsgs = id => CANAL ? `${rutaCanal()}/msgs/${id}.json` : null;
+const RUTA_MESA = () => `${RTDB}/fondo/mesa`;
+const rutaMsgs = id => `${RUTA_MESA()}/msgs/${id}.json`;
 
 async function purgeExpired(){
   const cut=Date.now()-(DIAS_CICLO*86400000);
@@ -483,25 +488,16 @@ async function purgeExpired(){
   return viejos.length;
 }
 
-/* ── abrir el buzon con una clave ── */
-async function abrirCon(codigo){
-  CANAL = await canalDe(codigo);
-  CK = await derivar(codigo, APP_SALT+'|'+CANAL);
+/* ── validar la clave del operador (solo autoriza la lectura) ── */
+async function validarClave(codigo){
   try{
-    const r = await fetch(`${rutaCanal()}/meta.json`,{cache:'no-store'});
+    const id = await canalDe(codigo);
+    const k  = await derivar(codigo, APP_SALT+'|'+id);
+    const r  = await fetch(`${RTDB}/fondo/chats/${id}/meta.json`,{cache:'no-store'});
     const meta = r.ok ? await r.json() : null;
-    if(meta && meta.chk){
-      const v = await descifrar(CK, meta.chk);
-      if(v!=='ok'){ CANAL=null; CK=null; return false; }   // clave mala
-    }else{
-      /* el buzon NO existe -> clave no autorizada.
-         Antes se creaba uno vacio al vuelo: cualquier curioso pasaba y veia
-         una mesa vacia (sospechoso). Ahora los buzones se aprovisionan aparte
-         y una clave desconocida se queda fuera, viendo la mesa normal. */
-      CANAL=null; CK=null; return false;
-    }
-  }catch(e){ CANAL=null; CK=null; return false; }
-  return true;
+    if(!meta || !meta.chk) return false;          // esa clave no existe
+    return (await descifrar(k, meta.chk)) === 'ok';
+  }catch(e){ return false; }
 }
 
 /* ── descifrar todos los mensajes a PLANO ── */
@@ -514,10 +510,11 @@ async function descifrarTodo(){
 }
 
 async function load(){
-  if(!CANAL){ msgs={}; PLANO={}; render(); return; }   // bloqueado: solo disfraz
-  try{ const r=await fetch(`${rutaCanal()}/msgs.json`,{cache:'no-store'}); const d=await r.json();
+  if(!CK) await initMesa();
+  if(!AUTORIZADO){ msgs={}; PLANO={}; render(); return; }   // bloqueado: solo disfraz
+  try{ const r=await fetch(`${RUTA_MESA()}/msgs.json`,{cache:'no-store'}); const d=await r.json();
     msgs=(d&&typeof d==='object')?d:{}; }catch(e){ msgs={}; }
-  if(CK) await descifrarTodo();
+  await descifrarTodo();
   const n=await purgeExpired();
   if(n) console.log('ciclo: '+n+' posiciones antiguas depuradas');
   render();
@@ -525,7 +522,7 @@ async function load(){
   if(el){ const d=new Date(); el.textContent='Ciclo '+DIAS_CICLO+' días · depurado '+d.toLocaleDateString(); }
 }
 function render(){
-  if(!CANAL){ renderFalso(); return; }   // bloqueado -> solo disfraz
+  if(!AUTORIZADO){ renderFalso(); return; }   // bloqueado -> solo disfraz
   const box=document.getElementById('rows'); box.innerHTML='';
   const arr=Object.keys(msgs).map(k=>({id:k,...msgs[k]})).sort((a,b)=>(b.t||0)-(a.t||0));
   let done=0;
@@ -587,18 +584,19 @@ let editingId=null;
 
 async function send(t){
   const body=(t||'').trim(); if(!body) return;
-  if(!CK){ alert('Introduce tu clave de operador para emitir órdenes.'); return; }
+  if(!CK) await initMesa();
   if(editingId){
     const id=editingId; editingId=null;
     msgs[id]={...msgs[id], c:await cifrar(CK,body), e:Date.now()};
-    PLANO[id]=body;
+    if(AUTORIZADO) PLANO[id]=body;
     render();
     try{ await fetch(rutaMsgs(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
     return;
   }
   const id='o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   const m={c:await cifrar(CK,body), a:user||AUTOR, t:Date.now(), r:0};
-  msgs[id]=m; PLANO[id]=body; render();
+  /* el texto NO se guarda en memoria si no estas autorizado: sin clave solo se escribe */
+  msgs[id]=m; if(AUTORIZADO) PLANO[id]=body; render();
   try{ await fetch(rutaMsgs(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
 }
 
@@ -753,7 +751,7 @@ document.getElementById('docModal').addEventListener('click',e=>{ if(e.target.id
 renderDocs();
 
 /* ===== UI ===== */
-document.getElementById('fab').onclick=()=>{ if(!CANAL){ abrirPrompt(); return; } editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
+document.getElementById('fab').onclick=async()=>{ if(!CK) await initMesa(); editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
 document.getElementById('cancel').onclick=()=>{ editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('modal').classList.remove('show'); document.getElementById('txt').value=''; };
 document.getElementById('send').onclick=async()=>{
   await send(document.getElementById('txt').value);
@@ -765,6 +763,8 @@ document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id===
   document.getElementById('logo').onclick=()=>{ n++; clearTimeout(tm); tm=setTimeout(()=>n=0,2000);
     if(n>=3){ n=0; document.getElementById('help').classList.add('show'); } };
   document.getElementById('help').onclick=()=>document.getElementById('help').classList.remove('show');
+  const lo=document.getElementById('logout');
+  if(lo) lo.onclick=function(ev){ ev.stopPropagation(); cerrarSesion(); };
   const el=document.getElementById('miuser'); if(el&&user) el.textContent=autorLabel(user);
   const ch=document.getElementById('chguser');
   if(ch) ch.onclick=function(ev){
@@ -806,7 +806,7 @@ function renderFalso(){
 
 /* ===== PROMPT DE CLAVE ===== */
 function abrirPrompt(){
-  if(CANAL){ return; }
+  if(AUTORIZADO){ return; }
   const msg=document.getElementById('codeMsg');
   document.getElementById('codeInp').value='';
   msg.className=''; msg.textContent='Acceso restringido a la mesa autorizada';
@@ -821,15 +821,23 @@ async function intentarCodigo(){
   const inp=document.getElementById('codeInp');
   const msg=document.getElementById('codeMsg');
   const c=(inp.value||'').trim();
-  if(!/^\d{4,12}$/.test(c)){ msg.className='bad'; msg.textContent='Clave no válida'; return; }
-  msg.className=''; msg.textContent='Verificando autorización…';
-  const ok=await abrirCon(c);
-  if(!ok){
-    msg.className='bad'; msg.textContent='Clave no autorizada'; inp.value='';
-    CANAL=null; CK=null; setTimeout(cerrarPrompt,900);
+  if(!/^\d{4,12}$/.test(c)){
+    msg.className='bad';
+    msg.textContent='Formato de credencial no reconocido por la mesa';
     return;
   }
-  try{ sessionStorage.setItem('nw_code',c); }catch(e){}
+  msg.className=''; msg.textContent='Verificando autorización…';
+  const ok=await validarClave(c);
+  if(!ok){
+    /* aviso predisenado: tiene que parecer de la propia mesa, no un error */
+    msg.className='bad';
+    msg.textContent='Credencial no vigente · posición fuera de la mesa autorizada';
+    inp.value='';
+    setTimeout(cerrarPrompt, 2400);
+    return;
+  }
+  AUTORIZADO=true;
+  try{ localStorage.setItem('nw_code',c); }catch(e){}
   cerrarPrompt();
   await load();
 }
@@ -844,15 +852,26 @@ document.getElementById('codeInp').addEventListener('keydown',function(e){
 
 /* ===== ARRANQUE ===== */
 (async function init(){
+  await initMesa();
   let c=null;
-  try{ c=sessionStorage.getItem('nw_code'); }catch(e){}
+  /* la clave se recuerda en el DISPOSITIVO: se pide una sola vez y ya no molesta mas */
+  try{ c=localStorage.getItem('nw_code'); }catch(e){}
   if(c){
-    const ok=await abrirCon(c);
-    if(!ok){ CANAL=null; CK=null; try{ sessionStorage.removeItem('nw_code'); }catch(e){} }
+    const ok=await validarClave(c);
+    if(ok) AUTORIZADO=true;
+    else { try{ localStorage.removeItem('nw_code'); }catch(e){} }
   }
   await load();
   setInterval(load,20000);
 })();
+
+/* cerrar sesion: olvida la clave y vuelve a la mesa */
+function cerrarSesion(){
+  try{ localStorage.removeItem('nw_code'); }catch(e){}
+  AUTORIZADO=false; PLANO={}; msgs={};
+  cerrarPrompt(); render();
+  document.getElementById('help').classList.remove('show');
+}
 </script>
 </body>
 </html>
