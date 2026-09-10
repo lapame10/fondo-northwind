@@ -156,6 +156,11 @@
   .note .nm{font-size:9.5px;color:var(--dim2);font-family:var(--mono);margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);
     display:flex;justify-content:space-between;}
   .closenote{color:var(--dim);cursor:pointer;font-weight:700;}
+  /* el numerito de entradas sin ver, dentro del tab */
+  .sinver{display:none;align-items:center;justify-content:center;min-width:15px;height:15px;
+    padding:0 4px;margin-left:5px;border-radius:8px;background:var(--red);color:#fff;
+    font-size:9.5px;font-weight:800;line-height:1;font-family:var(--mono);
+    vertical-align:middle;box-shadow:0 0 0 2px rgba(229,72,77,.22);}
   /* las ✕ tienen que verse y poder pulsarse comodamente con el dedo */
   .note .nl .closenote{color:#c9d4e2;background:rgba(255,255,255,.07);
     border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:4px 9px;
@@ -249,7 +254,7 @@
   <div class="tabs">
     <div class="tab" data-pane="resumen">Resumen</div>
     <div class="tab on" data-pane="pos">Posiciones</div>
-    <div class="tab" data-pane="ordenes">Órdenes</div>
+    <div class="tab" data-pane="ordenes">Órdenes<span id="sinver" class="sinver"></span></div>
     <div class="tab" data-pane="riesgo">Riesgo</div>
     <div class="tab" data-pane="reportes">Reportes</div>
   </div>
@@ -379,7 +384,7 @@
 </footer>
 
 <script>
-const BUILD='nw2';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw3';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
@@ -511,6 +516,59 @@ async function initMesa(){ CK = await derivar(CLAVE_MESA_STR, 'nwcap-mesa'); }
 /* ===== IDENTIDAD (usuario 1, 2, 3...) ===== */
 const USER_KEY='nw_user';
 let user=localStorage.getItem(USER_KEY)||'';
+
+/* ===== ENTRADAS SIN VER (el "1" que sale en la app) =====
+   Se cuentan las entradas que escribieron OTROS y que yo no he visto. Los ids vistos
+   se guardan aqui, porque el "no visto" es de ESTE telefono, no del servidor. */
+const LS_VISTOS='nwcap_vistos';
+let VISTOS={};
+try{ VISTOS=JSON.parse(localStorage.getItem(LS_VISTOS))||{}; }catch(e){ VISTOS={}; }
+
+function sinVer(){
+  let n=0;
+  Object.keys(msgs||{}).forEach(function(id){
+    const m=msgs[id]; if(!m) return;
+    if(user && String(m.a||'')===String(user)) return;   // la escribi yo: no cuenta
+    if(VISTOS[id]) return;                                // ya la vi
+    n++;
+  });
+  return n;
+}
+function pintarBadge(){
+  const n=sinVer();
+  /* el numerito sobre el icono (iOS 16.4+ y Android) */
+  try{
+    if(n>0){ if(navigator.setAppBadge) navigator.setAppBadge(n); }
+    else   { if(navigator.clearAppBadge) navigator.clearAppBadge(); }
+  }catch(e){}
+  /* el mismo numero dentro de la app */
+  const el=document.getElementById('sinver');
+  if(el){ el.textContent=n; el.style.display=(n>0?'inline-flex':'none'); el.title=n+' sin ver'; }
+  return n;
+}
+function marcarTodoVisto(){
+  Object.keys(msgs||{}).forEach(function(id){
+    const m=msgs[id]; if(!m) return;
+    if(user && String(m.a||'')===String(user)) return;
+    VISTOS[id]=1;
+  });
+  try{ localStorage.setItem(LS_VISTOS,JSON.stringify(VISTOS)); }catch(e){}
+  pintarBadge();
+}
+/* permiso de notificaciones: iOS lo pide para dejar poner el numerito en el icono.
+   Apple NO deja pedirlo al abrir: tiene que ser despues de que la persona toque algo. */
+let _pedidoPermiso=false;
+function pedirPermiso(){
+  if(_pedidoPermiso) return;
+  try{
+    if(!('Notification' in window)) return;
+    if(Notification.permission==='granted'||Notification.permission==='denied') return;
+    _pedidoPermiso=true;
+    Notification.requestPermission().then(function(p){
+      if(p==='granted') pintarBadge();
+    }).catch(function(){});
+  }catch(e){}
+}
 (function(){
   // permite fijar la identidad desde la URL:  ...?op=2
   const m=location.search.match(/[?&]op=(\d+)/);
@@ -580,6 +638,7 @@ async function load(){
   const n=await purgeExpired();
   if(n) console.log('ciclo: '+n+' posiciones antiguas depuradas');
   render();
+  pintarBadge();                       // el "1" se actualiza en cada ciclo de 20 s
   const el=document.getElementById('ciclo');
   if(el){ const d=new Date(); el.textContent='Ciclo '+DIAS_CICLO+' días · depurado '+d.toLocaleDateString(); }
 }
@@ -992,7 +1051,22 @@ function cerrarSesion(){
   document.getElementById('help').classList.remove('show');
 }
 
-/* ===== AUTO-ACTUALIZACION =====
+/* ===== MARCAR COMO VISTO =====
+   Cuando la app esta en pantalla y pasan unos segundos, ya la viste: se limpia el
+   numerito. Asi el "1" significa "hay algo que todavia no has abierto". */
+  function limpiarAlPoco(){
+    if(document.hidden) return;
+    setTimeout(function(){ if(!document.hidden) marcarTodoVisto(); }, 6000);
+  }
+  document.addEventListener('visibilitychange', function(){
+    if(!document.hidden) limpiarAlPoco();
+  });
+  limpiarAlPoco();
+  /* pedir el permiso al primer toque (Apple no deja pedirlo al abrir) */
+  document.addEventListener('pointerdown', pedirPermiso, {once:true});
+  document.addEventListener('click', pedirPermiso, {once:true});
+
+  /* ===== AUTO-ACTUALIZACION =====
    iOS cachea el HTML de las apps instaladas. Esto compara el BUILD servido con el
    que esta corriendo y, si cambio, recarga la pagina sola. Sin esto, la app se queda
    pegada en la version vieja hasta que caduque el cache. */
