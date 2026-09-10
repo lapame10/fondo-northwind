@@ -643,7 +643,14 @@ function render(){
   document.getElementById('kPend').textContent=arr.length-done;
 }
 function closeNotes(){
-  document.querySelectorAll('.note.show').forEach(n=>n.classList.remove('show'));
+  document.querySelectorAll('.note.show').forEach(n=>{
+    n.classList.remove('show');
+    /* al cerrar se OLVIDA que se abrio: al volver a tocarla se pide la clave otra vez */
+    const lock=n.querySelector('.gatelock'), body=n.querySelector('.gbody'), inp=n.querySelector('.gpin');
+    if(lock) lock.style.display='';
+    if(body){ body.style.display='none'; body.textContent=''; }
+    if(inp) inp.value='';
+  });
   document.querySelectorAll('.row.open').forEach(r=>r.classList.remove('open'));
 }
 async function markRead(id, rowEl){
