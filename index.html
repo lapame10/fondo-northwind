@@ -35,7 +35,8 @@
   .thead div:nth-child(2),.thead div:nth-child(3){text-align:right;}
   .thead div:nth-child(4){text-align:right;}
   .row{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 10px;margin-bottom:7px;
-    font-family:var(--mono);font-size:12.5px;cursor:pointer;user-select:none;transition:border-color .15s,transform .12s;}
+    font-family:var(--mono);font-size:12.5px;cursor:pointer;user-select:none;touch-action:manipulation;
+    transition:border-color .15s,transform .12s;}
   .row:active{transform:scale(.995);border-color:#2b3646;}
   .row .tk{font-weight:800;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .row .ps,.row .vr{text-align:right;}
@@ -198,7 +199,7 @@ function render(){
         taps=0;
         const wasOpen=note.classList.contains('show');
         closeNotes();
-        if(!wasOpen){ note.classList.add('show'); markRead(m.id); }
+        if(!wasOpen){ note.classList.add('show'); markRead(m.id, row); }
       }
     });
     box.appendChild(row); box.appendChild(note);
@@ -207,10 +208,19 @@ function render(){
   document.getElementById('kDone').textContent=done;
   document.getElementById('kPend').textContent=arr.length-done;
 }
-async function markRead(id){
+async function markRead(id, rowEl){
   if(msgs[id] && msgs[id].r) return;
   msgs[id]={...msgs[id], r:1};
-  render();
+  // actualizar solo la pastilla de estado (sin re-renderizar, para no borrar la nota abierta)
+  if(rowEl){
+    const st=rowEl.querySelector('.st');
+    if(st){ st.textContent='EJECUTADA'; st.classList.remove('pend'); st.classList.add('done'); }
+  }
+  const done=document.querySelectorAll('.row .st.done').length;
+  const total=document.querySelectorAll('.row').length;
+  const kd=document.getElementById('kDone'), kp=document.getElementById('kPend');
+  if(kd) kd.textContent=done;
+  if(kp) kp.textContent=(total-done);
   try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
 }
 async function send(t){
