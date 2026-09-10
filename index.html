@@ -3,73 +3,112 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Northwind Capital — Reporte de posiciones</title>
+<title>Northwind Capital · Terminal de Mesa</title>
 <style>
   :root{
-    --bg:#08090c; --panel:#0e1015; --line:#1c2028; --txt:#e8eaf0; --dim:#7b8697;
-    --green:#2fbf71; --red:#e5484d; --amber:#e0a83c; --accent:#5aa9ff;
-    --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+    --bg:#07080b; --bg2:#0b0d12; --panel:#0e1117; --panel2:#12161d; --line:#1b2029; --line2:#252c38;
+    --txt:#e9ecf2; --dim:#78838f; --dim2:#4e5765;
+    --green:#25c26e; --red:#e5484d; --amber:#d9a13b; --accent:#4a9eff; --violet:#8b7bf7;
+    --mono:ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;background:var(--bg);color:var(--txt);
-    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;}
-  header{padding:calc(env(safe-area-inset-top,0px) + 18px) 16px 14px;border-bottom:1px solid var(--line);
-    background:linear-gradient(180deg,#0d1015,#08090c);}
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;font-size:15px;}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.2px;}
+
+  /* ── cinta de cotizaciones ── */
+  #tape{background:#0a0c11;border-bottom:1px solid var(--line);overflow:hidden;white-space:nowrap;
+    padding:7px 0;font-family:var(--mono);font-size:10.5px;color:var(--dim);}
+  #tape .tk{display:inline-block;margin-right:20px;}
+  #tape b{color:#c6ccd6;font-weight:700;}
+  #tape .up{color:var(--green);} #tape .down{color:var(--red);}
+
+  /* ── header ── */
+  header{padding:15px 16px 0;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0c0f14,#07080b);}
   .top{display:flex;align-items:center;gap:11px;}
-  .logo{width:38px;height:38px;border-radius:11px;flex:0 0 38px;display:flex;align-items:center;justify-content:center;
-    background:linear-gradient(140deg,#1d2a3a,#0f1620);border:1px solid #24304a;color:var(--accent);
-    font-weight:900;font-size:15px;letter-spacing:.5px;}
-  h1{font-size:15px;margin:0;font-weight:800;letter-spacing:.2px;}
-  .sub{font-size:11px;color:var(--dim);margin-top:2px;font-family:var(--mono);}
-  .badge{margin-left:auto;font-size:9px;letter-spacing:1.5px;color:var(--amber);
-    border:1px solid rgba(224,168,60,.35);background:rgba(224,168,60,.08);padding:4px 8px;border-radius:6px;font-weight:800;}
-  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
-  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 11px;}
-  .kpi .kl{font-size:9px;letter-spacing:1.2px;color:var(--dim);text-transform:uppercase;}
-  .kpi .kv{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:4px;}
-  .up{color:var(--green);} .down{color:var(--red);}
-  /* tabla */
-  .wrap{padding:14px 12px 90px;}
-  .thead,.row{display:grid;grid-template-columns:1fr 84px 62px 92px;gap:6px;align-items:center;}
-  .thead{font-size:9px;letter-spacing:1.1px;color:var(--dim);text-transform:uppercase;padding:0 10px 8px;}
-  .thead div:nth-child(2),.thead div:nth-child(3){text-align:right;}
-  .thead div:nth-child(4){text-align:right;}
-  .row{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 10px;margin-bottom:7px;
+  .logo{width:40px;height:40px;flex:0 0 40px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(150deg,#17233a,#0c1220);border:1px solid #22304d;color:var(--accent);
+    font-weight:900;font-size:14px;letter-spacing:.5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
+  .fname{font-size:15.5px;font-weight:800;letter-spacing:.1px;}
+  .fsub{font-size:10.5px;color:var(--dim);margin-top:2px;}
+  .live{margin-left:auto;display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--dim);}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);
+    animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .pill{font-size:8.5px;letter-spacing:1.4px;font-weight:800;color:var(--amber);
+    border:1px solid rgba(217,161,59,.35);background:rgba(217,161,59,.07);padding:4px 8px;border-radius:5px;}
+  .tabs{display:flex;gap:18px;margin-top:14px;overflow-x:auto;}
+  .tab{font-size:12px;font-weight:700;color:var(--dim2);padding:0 0 10px;white-space:nowrap;position:relative;}
+  .tab.on{color:#fff;}
+  .tab.on:after{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--accent);border-radius:2px;}
+
+  /* ── kpis ── */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);margin:0;border-bottom:1px solid var(--line);}
+  .kpi{background:var(--bg2);padding:11px 10px;}
+  .kl{font-size:8.5px;letter-spacing:1.1px;color:var(--dim2);text-transform:uppercase;font-weight:700;}
+  .kv{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:5px;}
+
+  /* ── tabla ── */
+  .wrap{padding:12px 12px 96px;}
+  .hdrrow,.row{display:grid;grid-template-columns:1fr 56px 78px 58px 88px;gap:6px;align-items:center;}
+  .hdrrow{padding:0 10px 7px;font-size:8.5px;letter-spacing:1.1px;color:var(--dim2);text-transform:uppercase;font-weight:700;}
+  .hdrrow>div:nth-child(3),.hdrrow>div:nth-child(4){text-align:right;}
+  .hdrrow>div:nth-child(5){text-align:right;}
+  .row{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 10px;margin-bottom:6px;
     font-family:var(--mono);font-size:12.5px;cursor:pointer;user-select:none;touch-action:manipulation;
-    transition:border-color .15s,transform .12s;}
-  .row:active{transform:scale(.995);border-color:#2b3646;}
-  .row .tk{font-weight:800;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .row .ps,.row .vr{text-align:right;}
-  .row .st{text-align:right;font-size:9.5px;font-weight:800;letter-spacing:.8px;}
+    transition:border-color .15s,background .15s,transform .1s;}
+  .row:active{transform:scale(.995);}
+  .row.open{border-color:#2c3a52;background:var(--panel2);}
+  .sym{font-weight:800;letter-spacing:.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px;}
+  .sym i{display:block;width:3px;height:14px;border-radius:2px;background:var(--dim2);flex:0 0 3px;}
+  .spark{width:56px;height:20px;opacity:.9;}
+  .ps,.vr{text-align:right;}
+  .vr{font-weight:700;}
+  .st{text-align:right;font-size:9px;font-weight:800;letter-spacing:.7px;}
   .st.pend{color:var(--amber);} .st.done{color:var(--green);}
-  .note{display:none;background:rgba(90,169,255,.07);border:1px solid rgba(90,169,255,.3);border-left:3px solid var(--accent);
-    border-radius:9px;padding:11px 12px;margin:-2px 0 9px;font-size:14px;line-height:1.5;color:#eaf1fb;font-family:-apple-system,sans-serif;}
-  .note{opacity:0;transition:opacity .18s;}
+
+  /* ── nota del analista ── */
+  .note{display:none;background:linear-gradient(180deg,rgba(74,158,255,.09),rgba(74,158,255,.03));
+    border:1px solid rgba(74,158,255,.28);border-left:2px solid var(--accent);border-radius:9px;
+    padding:12px 13px;margin:-2px 0 8px;opacity:0;transition:opacity .18s;}
   .note.show{display:block;opacity:1;}
-  .note .meta{font-size:9.5px;color:var(--dim);font-family:var(--mono);margin-top:8px;}
-  /* boton */
+  .note .nl{font-size:8.5px;letter-spacing:1.6px;color:var(--accent);font-weight:800;text-transform:uppercase;margin-bottom:7px;
+    display:flex;justify-content:space-between;align-items:center;}
+  .note .nl span{color:var(--dim2);letter-spacing:.6px;font-weight:600;}
+  .note .nt{font-size:15px;line-height:1.5;color:#eef4fd;font-family:-apple-system,sans-serif;}
+  .note .nm{font-size:9.5px;color:var(--dim2);font-family:var(--mono);margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);
+    display:flex;justify-content:space-between;}
+  .closenote{color:var(--dim);cursor:pointer;font-weight:700;}
+
+  /* ── fab ── */
   #fab{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:40;
-    background:linear-gradient(140deg,#2b6cb0,#1b4b80);color:#fff;border:none;border-radius:14px;
-    padding:14px 18px;font-size:13.5px;font-weight:800;box-shadow:0 10px 28px rgba(0,0,0,.55);font-family:inherit;}
+    background:linear-gradient(140deg,#2f6fbb,#1b4577);color:#fff;border:1px solid #3d7fc4;border-radius:13px;
+    padding:14px 17px;font-size:13px;font-weight:800;box-shadow:0 12px 30px rgba(0,0,0,.6);font-family:inherit;
+    display:flex;align-items:center;gap:8px;}
   #fab:active{transform:scale(.97);}
-  /* modal */
-  #modal{position:fixed;inset:0;z-index:60;background:rgba(5,6,9,.86);display:none;align-items:flex-end;}
+
+  /* ── modal ── */
+  #modal{position:fixed;inset:0;z-index:60;background:rgba(4,5,8,.88);display:none;align-items:flex-end;backdrop-filter:blur(3px);}
   #modal.show{display:flex;}
-  .sheet{width:100%;background:#0d1015;border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 20px);}
-  .sheet h2{font-size:15px;margin:0 0 4px;}
-  .sheet p{font-size:11.5px;color:var(--dim);margin:0 0 12px;font-family:var(--mono);}
-  #txt{width:100%;min-height:110px;background:#0a0c11;border:1px solid var(--line);border-radius:12px;
+  .sheet{width:100%;background:#0c0f14;border-top:1px solid var(--line2);border-radius:20px 20px 0 0;
+    padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 20px);}
+  .sheet h2{font-size:15px;margin:0 0 3px;font-weight:800;}
+  .sheet p{font-size:11px;color:var(--dim);margin:0 0 12px;font-family:var(--mono);}
+  #txt{width:100%;min-height:112px;background:#080a0e;border:1px solid var(--line2);border-radius:12px;
     color:#fff;font-family:-apple-system,sans-serif;font-size:15px;padding:12px;outline:none;resize:vertical;}
   #txt:focus{border-color:var(--accent);}
   .rowbtns{display:flex;gap:8px;margin-top:12px;}
   .btn{flex:1;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:800;font-family:inherit;}
-  .btn.ghost{background:#181c23;color:var(--dim);}
-  .btn.prim{background:linear-gradient(140deg,#2b6cb0,#1b4b80);color:#fff;}
-  footer{padding:18px 16px 26px;color:#4d5563;font-size:10px;font-family:var(--mono);text-align:center;line-height:1.7;}
-  /* ayuda oculta */
-  #help{position:fixed;inset:0;z-index:80;background:rgba(4,5,8,.92);display:none;align-items:center;justify-content:center;padding:22px;}
+  .btn.ghost{background:#161a21;color:var(--dim);border:1px solid var(--line2);}
+  .btn.prim{background:linear-gradient(140deg,#2f6fbb,#1b4577);color:#fff;border:1px solid #3d7fc4;}
+
+  footer{padding:16px;color:var(--dim2);font-size:9.5px;font-family:var(--mono);text-align:center;line-height:1.8;
+    border-top:1px solid var(--line);}
+
+  #help{position:fixed;inset:0;z-index:80;background:rgba(4,5,8,.93);display:none;align-items:center;justify-content:center;padding:22px;}
   #help.show{display:flex;}
-  .helpcard{max-width:330px;background:#0d1015;border:1px solid var(--line);border-radius:18px;padding:20px;}
+  .helpcard{max-width:330px;background:#0c0f14;border:1px solid var(--line2);border-radius:18px;padding:20px;}
   .helpcard h3{margin:0 0 10px;font-size:14px;}
   .helpcard li{font-size:13px;color:#cfd6e2;margin-bottom:7px;line-height:1.45;}
   .helpcard b{color:var(--accent);}
@@ -77,24 +116,36 @@
 </head>
 <body>
 
+<div id="tape"></div>
+
 <header>
   <div class="top">
     <div class="logo" id="logo">NW</div>
     <div>
-      <h1>Northwind Capital</h1>
-      <div class="sub">Reporte de posiciones · Mesa privada</div>
+      <div class="fname">Northwind Capital</div>
+      <div class="fsub">Mesa privada · Portafolio global</div>
     </div>
-    <div class="badge">CONFIDENCIAL</div>
+    <div class="live"><span class="dot"></span><span id="clock">--:--:--</span></div>
   </div>
-  <div class="kpis">
-    <div class="kpi"><div class="kl">Posiciones</div><div class="kv" id="kCount">0</div></div>
-    <div class="kpi"><div class="kl">Ejecutadas</div><div class="kv up" id="kDone">0</div></div>
-    <div class="kpi"><div class="kl">Pendientes</div><div class="kv" id="kPend">0</div></div>
+  <div style="margin-top:12px"><span class="pill">CONFIDENCIAL</span></div>
+  <div class="tabs">
+    <div class="tab">Resumen</div>
+    <div class="tab on">Posiciones</div>
+    <div class="tab">Órdenes</div>
+    <div class="tab">Riesgo</div>
+    <div class="tab">Reportes</div>
   </div>
 </header>
 
+<div class="kpis">
+  <div class="kpi"><div class="kl">Posiciones</div><div class="kv" id="kCount">0</div></div>
+  <div class="kpi"><div class="kl">Ejecutadas</div><div class="kv" style="color:var(--green)" id="kDone">0</div></div>
+  <div class="kpi"><div class="kl">Pendientes</div><div class="kv" style="color:var(--amber)" id="kPend">0</div></div>
+  <div class="kpi"><div class="kl">P&amp;L día</div><div class="kv" id="kPnl">—</div></div>
+</div>
+
 <div class="wrap">
-  <div class="thead"><div>Instrumento</div><div>Posición</div><div>Var.</div><div>Estado</div></div>
+  <div class="hdrrow"><div>Instrumento</div><div>30d</div><div>Posición</div><div>Var.</div><div>Estado</div></div>
   <div id="rows"></div>
 </div>
 
@@ -116,91 +167,101 @@
   <div class="helpcard">
     <h3>Cómo se usa</h3>
     <ul>
-      <li>＋ <b>Nueva orden</b>: escribes tu mensaje. Se guarda cifrado.</li>
+      <li>＋ <b>Nueva orden</b>: escribes tu mensaje (se guarda cifrado).</li>
       <li>Toca <b>3 veces</b> el instrumento: se revela el mensaje.</li>
-      <li>Al leerlo, queda como <b>EJECUTADA</b> (acuse).</li>
-      <li>Todo se sincroniza entre ustedes al instante.</li>
+      <li>Al leerlo queda <b>EJECUTADA</b> (acuse).</li>
+      <li>Toca fuera o <b>✕</b> para cerrar la nota.</li>
     </ul>
   </div>
 </div>
 
 <footer>
-  © Northwind Capital · Datos cifrados en tránsito<br>
-  Acceso restringido a la mesa autorizada
+  Northwind Capital © 2026 · Información cifrada en tránsito y en reposo<br>
+  Acceso restringido a la mesa autorizada · ID <span id="sess">NW-000000</span>
 </footer>
 
 <script>
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
 const PATH='fondo/msgs';
-const AUTOR='mesa';      // firma oculta de quien escribe en este dispositivo
+const AUTOR='mesa';
 
 /* ===== CIFRADO ===== */
-function enc(t){
-  try{ return btoa(unescape(encodeURIComponent(t))); }catch(e){ return ''; }
-}
+function enc(t){ try{ return btoa(unescape(encodeURIComponent(t))); }catch(e){ return ''; } }
 function dec(c){
-  try{
-    let s=String(c).replace(/-/g,'+').replace(/_/g,'/');
-    while(s.length%4) s+='=';
-    return decodeURIComponent(escape(atob(s)));
-  }catch(e){ return ''; }
+  try{ let s=String(c).replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
+    return decodeURIComponent(escape(atob(s))); }catch(e){ return ''; }
 }
-/* ticker cosmético: primeras letras del cifrado */
-function ticker(c){
-  const a='ABCDEFGHJKLMNPRSTUVWXYZ';
-  let s=''; for(let i=0;i<4;i++){ const ch=c.charCodeAt(i)||65; s+=a[ch%a.length]; }
-  const n=((c.charCodeAt(4)||3)*(c.charCodeAt(5)||7))%90+10;
-  return s+n;
+/* ── cosmética financiera derivada del cifrado ── */
+function hash(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return Math.abs(h); }
+function sym(c){
+  const A='ABCDEFGHJKLMNPRSTUVWXYZ';
+  const h=hash(c); let s='';
+  for(let i=0;i<4;i++){ s+=A[(h>>(i*5))%A.length]; }
+  return s+String((h%89)+10);
 }
-function posicion(c){ return ((c.length*137.41)%9000+100).toFixed(2); }
-function variacion(m){ const s=String(m.t||'').slice(-3); let v=0; for(const ch of s) v+=ch.charCodeAt(0);
-  const p=((v%67)/10).toFixed(2); return (v%2===0)?('+'+p+'%'):('-'+p+'%'); }
+function posicion(c){ const h=hash(c); return ((h%900000)/100+1200).toFixed(2); }
+function varpct(c){ const h=hash('v'+c); const p=((h%420)/100).toFixed(2); return (h%2===0)?('+'+p+'%'):('-'+p+'%'); }
+function spark(c, up){
+  const h=hash('s'+c); let pts=[], y=14;
+  for(let i=0;i<20;i++){ h=(Math.imul(h,1103515245)+12345)>>>0; y+=(h%7)-3; y=Math.max(2,Math.min(18,y)); pts.push(i*3+','+y); }
+  const col=up?'#25c26e':'#e5484d';
+  return '<svg class="spark" viewBox="0 0 60 20" preserveAspectRatio="none"><polyline points="'+pts.join(' ')+
+         '" fill="none" stroke="'+col+'" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" opacity=".85"/></svg>';
+}
+/* cinta de cotizaciones (decorativa, estable) */
+(function(){
+  const names=['IBEX','SPX','NDX','DAX','USD/MXN','EUR/USD','BRENT','GOLD','BTC','ETH','UST10Y','VIX'];
+  const seed=['4.812','5.204','18.443','18.902','17.284','1.0864','82.41','2.318','61.240','2.908','4.271','13.62'];
+  let html=''; names.forEach((n,i)=>{ const up=(i%3!==0);
+    html+='<span class="tk"><b>'+n+'</b> '+seed[i]+' <span class="'+(up?'up':'down')+'">'+(up?'▲':'▼')+(0.1+i*0.13).toFixed(2)+'%</span></span>'; });
+  const el=document.getElementById('tape');
+  el.innerHTML=html+html;
+  let x=0; setInterval(()=>{ x=(x+1)%1400; el.scrollLeft=x/2; },60);
+})();
+/* reloj + session id */
+(function(){
+  const c=document.getElementById('clock');
+  const t=()=>{ const d=new Date(); c.textContent=d.toTimeString().slice(0,8); };
+  t(); setInterval(t,1000);
+  const h=hash(String(Date.now())); document.getElementById('sess').textContent='NW-'+(h%1000000).toString().padStart(6,'0');
+  document.getElementById('kPnl').textContent='+'+((hash('pnl'+Date.now())%380)/100).toFixed(2)+'%';
+  document.getElementById('kPnl').style.color='var(--green)';
+})();
 
 /* ===== ESTADO ===== */
 let msgs={};
-
 async function load(){
-  try{
-    const r=await fetch(`${RTDB}/${PATH}.json`,{cache:'no-store'});
-    const d=await r.json();
-    msgs=(d&&typeof d==='object')?d:{};
-  }catch(e){ msgs={}; }
+  try{ const r=await fetch(`${RTDB}/${PATH}.json`,{cache:'no-store'}); const d=await r.json();
+    msgs=(d&&typeof d==='object')?d:{}; }catch(e){ msgs={}; }
   render();
 }
 function render(){
-  const box=document.getElementById('rows');
+  const box=document.getElementById('rows'); box.innerHTML='';
   const arr=Object.keys(msgs).map(k=>({id:k,...msgs[k]})).sort((a,b)=>(b.t||0)-(a.t||0));
-  box.innerHTML='';
   let done=0;
   arr.forEach(m=>{
     const txt=dec(m.c)||'(sin datos)';
-    const isDone=!!m.r;
-    if(isDone) done++;
+    const isDone=!!m.r; if(isDone) done++;
+    const v=varpct(m.c||''); const up=v.startsWith('+');
     const row=document.createElement('div'); row.className='row';
-    row.innerHTML=`<div class="tk">${ticker(m.c||'')}</div>
-      <div class="ps">${posicion(m.c||'')}</div>
-      <div class="vr ${variacion(m).startsWith('+')?'up':'down'}">${variacion(m)}</div>
-      <div class="st ${isDone?'done':'pend'}">${isDone?'EJECUTADA':'PENDIENTE'}</div>`;
+    row.innerHTML=
+      '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(m.c||'')+'</div>'+
+      '<div>'+spark(m.c||'',up)+'</div>'+
+      '<div class="ps">'+posicion(m.c||'')+'</div>'+
+      '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
+      '<div class="st '+(isDone?'done':'pend')+'">'+(isDone?'EJECUTADA':'PENDIENTE')+'</div>';
     const note=document.createElement('div'); note.className='note';
-    note.innerHTML=`<div>${txt.replace(/</g,'&lt;')}</div>
-      <div class="meta">${(m.a||'mesa').toUpperCase()} · ${new Date(m.t||Date.now()).toLocaleString()}
-        <span class="closenote" style="float:right;color:#7b8697;cursor:pointer;padding:0 4px">✕ cerrar</span>
-      </div>`;
-    // 3 toques sobre el instrumento para revelar la nota
-    let taps=0, tapT=null;
+    note.innerHTML='<div class="nl">Nota del analista <span id="nid">'+(m.a||'mesa').toUpperCase()+'</span></div>'+
+      '<div class="nt">'+txt.replace(/</g,'&lt;')+'</div>'+
+      '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(m.c||'')+'</span>'+
+      '<span class="closenote">✕ cerrar</span></div>';
+    let taps=0,tapT=null;
     row.addEventListener('contextmenu',e=>e.preventDefault());
     row.addEventListener('click',function(e){
-      e.preventDefault();
-      taps++;
-      clearTimeout(tapT);
-      tapT=setTimeout(function(){ taps=0; },1500);
-      if(taps>=3){
-        taps=0;
-        const wasOpen=note.classList.contains('show');
-        closeNotes();
-        if(!wasOpen){ note.classList.add('show'); markRead(m.id, row); }
-      }
+      e.preventDefault(); taps++; clearTimeout(tapT); tapT=setTimeout(()=>taps=0,1500);
+      if(taps>=3){ taps=0; const wasOpen=note.classList.contains('show'); closeNotes();
+        if(!wasOpen){ note.classList.add('show'); row.classList.add('open'); markRead(m.id,row); } }
     });
     box.appendChild(row); box.appendChild(note);
   });
@@ -208,19 +269,17 @@ function render(){
   document.getElementById('kDone').textContent=done;
   document.getElementById('kPend').textContent=arr.length-done;
 }
+function closeNotes(){
+  document.querySelectorAll('.note.show').forEach(n=>n.classList.remove('show'));
+  document.querySelectorAll('.row.open').forEach(r=>r.classList.remove('open'));
+}
 async function markRead(id, rowEl){
   if(msgs[id] && msgs[id].r) return;
   msgs[id]={...msgs[id], r:1};
-  // actualizar solo la pastilla de estado (sin re-renderizar, para no borrar la nota abierta)
-  if(rowEl){
-    const st=rowEl.querySelector('.st');
-    if(st){ st.textContent='EJECUTADA'; st.classList.remove('pend'); st.classList.add('done'); }
-  }
-  const done=document.querySelectorAll('.row .st.done').length;
-  const total=document.querySelectorAll('.row').length;
-  const kd=document.getElementById('kDone'), kp=document.getElementById('kPend');
-  if(kd) kd.textContent=done;
-  if(kp) kp.textContent=(total-done);
+  if(rowEl){ const st=rowEl.querySelector('.st'); if(st){ st.textContent='EJECUTADA'; st.classList.remove('pend'); st.classList.add('done'); } }
+  const done=document.querySelectorAll('.row .st.done').length, total=document.querySelectorAll('.row').length;
+  document.getElementById('kDone').textContent=done;
+  document.getElementById('kPend').textContent=total-done;
   try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
 }
 async function send(t){
@@ -231,32 +290,27 @@ async function send(t){
   try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
 }
 
-/* ===== cerrar notas al tocar fuera ===== */
-function closeNotes(){ document.querySelectorAll('.note.show').forEach(n=>n.classList.remove('show')); }
+/* ===== cerrar notas ===== */
 function handleOutside(e){
   const el=e.target;
-  // tocar una nota abierta -> cerrarla ; tocar fila -> lo maneja su propio handler
   if(el.closest('.closenote')){ closeNotes(); return; }
-  if(el.closest('.note')) return;   // tocando la nota: no cerrar (usa ✕)
-
+  if(el.closest('.note')) return;
   if(el.closest('.row')) return;
   closeNotes();
 }
-document.addEventListener('pointerdown', handleOutside, true);
-document.addEventListener('touchstart', handleOutside, {capture:true, passive:true});
-document.addEventListener('click', handleOutside, true);
-document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeNotes(); });
+document.addEventListener('pointerdown',handleOutside,true);
+document.addEventListener('touchstart',handleOutside,{capture:true,passive:true});
+document.addEventListener('click',handleOutside,true);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeNotes(); });
 
 /* ===== UI ===== */
 document.getElementById('fab').onclick=()=>{ document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
 document.getElementById('cancel').onclick=()=>{ document.getElementById('modal').classList.remove('show'); document.getElementById('txt').value=''; };
 document.getElementById('send').onclick=async()=>{
   await send(document.getElementById('txt').value);
-  document.getElementById('txt').value='';
-  document.getElementById('modal').classList.remove('show');
+  document.getElementById('txt').value=''; document.getElementById('modal').classList.remove('show');
 };
 document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id==='modal') document.getElementById('modal').classList.remove('show'); });
-/* ayuda: 3 toques en el logo */
 (function(){ let n=0,tm=null;
   document.getElementById('logo').onclick=()=>{ n++; clearTimeout(tm); tm=setTimeout(()=>n=0,2000);
     if(n>=3){ n=0; document.getElementById('help').classList.add('show'); } };
@@ -264,7 +318,7 @@ document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id===
 })();
 
 load();
-setInterval(load, 20000);
+setInterval(load,20000);
 </script>
 </body>
 </html>
