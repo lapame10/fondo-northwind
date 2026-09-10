@@ -359,7 +359,7 @@ function render(){
     const row=document.createElement('div'); row.className='row';
     row.innerHTML=
       '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(m.c||'')+
-        '<span style="font-size:8.5px;color:var(--dim2);font-weight:700;letter-spacing:.5px">'+autorLabel(m.a).replace('USUARIO ','U')+'</span></div>'+
+        '<span style="font-size:8.5px;color:var(--dim2);font-weight:700;letter-spacing:.4px;margin-left:3px">· '+autorLabel(m.a).replace('USUARIO ','U')+'</span></div>'+
       '<div>'+spark(m.c||'',up)+'</div>'+
       '<div class="ps">'+posicion(m.c||'')+'</div>'+
       '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
