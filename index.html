@@ -157,6 +157,17 @@
     display:flex;justify-content:space-between;}
   .closenote{color:var(--dim);cursor:pointer;font-weight:700;}
   /* el numerito de entradas sin ver, dentro del tab */
+  .btnavisos{cursor:pointer;margin-left:7px;font-size:13px;opacity:.75;padding:2px 4px;
+    border-radius:6px;-webkit-tap-highlight-color:transparent;}
+  .btnavisos:active{background:rgba(255,255,255,.14);opacity:1;}
+  .diag{display:none;position:fixed;left:10px;right:10px;top:70px;z-index:200;
+    background:#0b0e14;border:1px solid #2a3442;border-radius:11px;padding:13px 14px;
+    font-family:var(--mono);font-size:11px;color:#c6d2e2;box-shadow:0 10px 34px rgba(0,0,0,.6);}
+  .diag.show{display:block;}
+  .diag .dh{font-size:9px;letter-spacing:2px;color:var(--accent);font-weight:800;margin-bottom:9px;}
+  .diag .dl div{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05);word-break:break-all;}
+  .diag .dbtn{margin-top:10px;text-align:center;color:var(--accent);font-weight:700;cursor:pointer;
+    padding:6px;border:1px solid rgba(74,158,255,.35);border-radius:8px;}
   .sinver{display:none;align-items:center;justify-content:center;min-width:15px;height:15px;
     padding:0 4px;margin-left:5px;border-radius:8px;background:var(--red);color:#fff;
     font-size:9.5px;font-weight:800;line-height:1;font-family:var(--mono);
@@ -241,6 +252,10 @@
 
 <div id="tape"></div>
 
+<!-- panel de diagnostico: sale al tocar 5 veces el logo. Sirve para saber que falla
+     en el telefono de verdad, que es donde pasa todo. -->
+<div id="diag" class="diag"></div>
+
 <header>
   <div class="top">
     <div class="logo" id="logo">NW</div>
@@ -248,7 +263,7 @@
       <div class="fname">Northwind Capital</div>
       <div class="fsub">Mesa privada · Portafolio global</div>
     </div>
-    <div class="live"><span class="dot"></span><span id="clock">--:--:--</span></div>
+    <div class="live"><span class="dot"></span><span id="clock">--:--:--</span><span id="btnAvisos" class="btnavisos" title="activar avisos">🔔</span></div>
   </div>
   <div style="margin-top:12px"><span class="pill">CONFIDENCIAL</span></div>
   <div class="tabs">
@@ -384,7 +399,7 @@
 </footer>
 
 <script>
-const BUILD='nw4';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw5';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
@@ -558,6 +573,33 @@ function marcarTodoVisto(){
 /* permiso de notificaciones: iOS lo pide para dejar poner el numerito en el icono.
    Apple NO deja pedirlo al abrir: tiene que ser despues de que la persona toque algo. */
 let _pedidoPermiso=false;
+/* ===== DIAGNOSTICO =====
+   Muestra en pantalla que esta pasando: es la unica forma de saber que falla en el
+   telefono, porque ahi no hay consola. Se abre tocando 5 veces el logo. */
+function diagLineas(){
+  const L=[];
+  L.push('BUILD: '+BUILD);
+  L.push('serviceWorker: '+('serviceWorker' in navigator));
+  L.push('PushManager: '+('PushManager' in window));
+  L.push('Notification: '+('Notification' in window));
+  L.push('permiso: '+(('Notification' in window)?Notification.permission:'n/a'));
+  L.push('instalada (standalone): '+(window.navigator.standalone===true));
+  L.push('_swListo: '+_swListo);
+  L.push('error SW: '+(_swError||'(ninguno)'));
+  if(navigator.serviceWorker){
+    L.push('controller: '+(navigator.serviceWorker.controller?navigator.serviceWorker.controller.scriptURL.split('/').pop():'ninguno aun'));
+  }
+  return L;
+}
+function pintarDiag(){
+  const el=document.getElementById('diag'); if(!el) return;
+  el.innerHTML='<div class="dh">DIAGNOSTICO</div><div class="dl">'+
+    diagLineas().map(function(x){ return '<div>'+x+'</div>'; }).join('')+'</div>'+
+    '<div class="dbtn" id="dCerrar">cerrar</div>';
+  el.classList.add('show');
+  const c=document.getElementById('dCerrar'); if(c) c.onclick=function(e){ e.stopPropagation(); el.classList.remove('show'); };
+}
+
 function pedirPermiso(){
   if(_pedidoPermiso) return;
   _pedidoPermiso=true;
@@ -579,7 +621,7 @@ function pedirPermiso(){
 /* ===== SERVICE WORKER =====
    Obligatorio en iOS para (a) poder pedir el permiso y (b) recibir avisos con la
    app cerrada. Es el "portero": vive en el telefono aunque la app este cerrada. */
-let _swListo=false, _swEsperando=[];
+let _swListo=false, _swEsperando=[], _swError='';
 function cuandoSWListo(fn){
   if(_swListo){ fn(); return; }
   _swEsperando.push(fn);
@@ -596,7 +638,7 @@ function arrancarSW(){
     }
     if(navigator.serviceWorker.ready) { navigator.serviceWorker.ready.then(listo); }
     else listo();
-  }).catch(function(e){ console.log('NW: service worker fallo: '+e.message); });
+  }).catch(function(e){ _swError=e.message; console.log('NW: service worker fallo: '+e.message); });
 }
 
 /* ===== SUSCRIPCION PUSH =====
@@ -1114,7 +1156,32 @@ function cerrarSesion(){
   document.getElementById('help').classList.remove('show');
 }
 
-/* ===== MARCAR COMO VISTO =====
+/* ===== BOTON DE AVISOS =====
+   Pedir el permiso al tocar el boton (en vez de depender de "el primer toque en
+   cualquier sitio", que es fragil). Y si algo falla, se ve en el panel. */
+  const _btnAvisos=document.getElementById('btnAvisos');
+  if(_btnAvisos){
+    _btnAvisos.addEventListener('click', function(e){
+      e.stopPropagation();
+      _pedidoPermiso=false;                       // permitir reintentar
+      pedirPermiso();
+      setTimeout(function(){ pintarDiag(); }, 1200);
+    });
+  }
+  /* el logo: 5 toques seguidos abren el diagnostico */
+  let _tapsDiag=0, _tDiag=0;
+  const _logo=document.getElementById('logo');
+  if(_logo){
+    _logo.addEventListener('click', function(e){
+      e.stopPropagation();
+      const ahora=Date.now();
+      if(ahora-_tDiag > 1200) _tapsDiag=0;
+      _tDiag=ahora; _tapsDiag++;
+      if(_tapsDiag>=5){ _tapsDiag=0; pintarDiag(); }
+    });
+  }
+
+  /* ===== MARCAR COMO VISTO =====
    Cuando la app esta en pantalla y pasan unos segundos, ya la viste: se limpia el
    numerito. Asi el "1" significa "hay algo que todavia no has abierto". */
   function limpiarAlPoco(){
