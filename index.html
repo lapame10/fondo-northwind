@@ -254,7 +254,8 @@
 
 <footer>
   Northwind Capital © 2026 · Información cifrada en tránsito y en reposo<br>
-  Acceso restringido a la mesa autorizada · ID <span id="sess">NW-000000</span>
+  Acceso restringido a la mesa autorizada · ID <span id="sess">NW-000000</span><br>
+  <span id="ciclo" style="color:var(--dim2)"></span>
 </footer>
 
 <script>
@@ -308,10 +309,26 @@ function spark(c, up){
 
 /* ===== ESTADO ===== */
 let msgs={};
+const DIAS_CICLO=20;   // los mensajes se reinician cada 20 dias
+
+async function purgeExpired(){
+  const cut=Date.now()-(DIAS_CICLO*86400000);
+  const viejos=Object.keys(msgs).filter(k=>msgs[k]&&msgs[k].t&&msgs[k].t<cut);
+  for(const id of viejos){
+    delete msgs[id];
+    try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'DELETE'}); }catch(e){}
+  }
+  return viejos.length;
+}
+
 async function load(){
   try{ const r=await fetch(`${RTDB}/${PATH}.json`,{cache:'no-store'}); const d=await r.json();
     msgs=(d&&typeof d==='object')?d:{}; }catch(e){ msgs={}; }
+  const n=await purgeExpired();
+  if(n) console.log('ciclo: '+n+' posiciones antiguas depuradas');
   render();
+  const el=document.getElementById('ciclo');
+  if(el){ const d=new Date(); el.textContent='Ciclo '+DIAS_CICLO+' días · depurado '+d.toLocaleDateString(); }
 }
 function render(){
   const box=document.getElementById('rows'); box.innerHTML='';
