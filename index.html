@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Northwind Capital — Reporte de posiciones</title>
+<style>
+  :root{
+    --bg:#08090c; --panel:#0e1015; --line:#1c2028; --txt:#e8eaf0; --dim:#7b8697;
+    --green:#2fbf71; --red:#e5484d; --amber:#e0a83c; --accent:#5aa9ff;
+    --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;}
+  header{padding:calc(env(safe-area-inset-top,0px) + 18px) 16px 14px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0d1015,#08090c);}
+  .top{display:flex;align-items:center;gap:11px;}
+  .logo{width:38px;height:38px;border-radius:11px;flex:0 0 38px;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(140deg,#1d2a3a,#0f1620);border:1px solid #24304a;color:var(--accent);
+    font-weight:900;font-size:15px;letter-spacing:.5px;}
+  h1{font-size:15px;margin:0;font-weight:800;letter-spacing:.2px;}
+  .sub{font-size:11px;color:var(--dim);margin-top:2px;font-family:var(--mono);}
+  .badge{margin-left:auto;font-size:9px;letter-spacing:1.5px;color:var(--amber);
+    border:1px solid rgba(224,168,60,.35);background:rgba(224,168,60,.08);padding:4px 8px;border-radius:6px;font-weight:800;}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 11px;}
+  .kpi .kl{font-size:9px;letter-spacing:1.2px;color:var(--dim);text-transform:uppercase;}
+  .kpi .kv{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:4px;}
+  .up{color:var(--green);} .down{color:var(--red);}
+  /* tabla */
+  .wrap{padding:14px 12px 90px;}
+  .thead,.row{display:grid;grid-template-columns:1fr 84px 62px 92px;gap:6px;align-items:center;}
+  .thead{font-size:9px;letter-spacing:1.1px;color:var(--dim);text-transform:uppercase;padding:0 10px 8px;}
+  .thead div:nth-child(2),.thead div:nth-child(3){text-align:right;}
+  .thead div:nth-child(4){text-align:right;}
+  .row{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 10px;margin-bottom:7px;
+    font-family:var(--mono);font-size:12.5px;cursor:pointer;user-select:none;transition:border-color .15s,transform .12s;}
+  .row:active{transform:scale(.995);border-color:#2b3646;}
+  .row .tk{font-weight:800;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .row .ps,.row .vr{text-align:right;}
+  .row .st{text-align:right;font-size:9.5px;font-weight:800;letter-spacing:.8px;}
+  .st.pend{color:var(--amber);} .st.done{color:var(--green);}
+  .note{display:none;background:rgba(90,169,255,.07);border:1px solid rgba(90,169,255,.3);border-left:3px solid var(--accent);
+    border-radius:9px;padding:11px 12px;margin:-2px 0 9px;font-size:14px;line-height:1.5;color:#eaf1fb;font-family:-apple-system,sans-serif;}
+  .note.show{display:block;}
+  .note .meta{font-size:9.5px;color:var(--dim);font-family:var(--mono);margin-top:8px;}
+  /* boton */
+  #fab{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:40;
+    background:linear-gradient(140deg,#2b6cb0,#1b4b80);color:#fff;border:none;border-radius:14px;
+    padding:14px 18px;font-size:13.5px;font-weight:800;box-shadow:0 10px 28px rgba(0,0,0,.55);font-family:inherit;}
+  #fab:active{transform:scale(.97);}
+  /* modal */
+  #modal{position:fixed;inset:0;z-index:60;background:rgba(5,6,9,.86);display:none;align-items:flex-end;}
+  #modal.show{display:flex;}
+  .sheet{width:100%;background:#0d1015;border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom,0px) + 20px);}
+  .sheet h2{font-size:15px;margin:0 0 4px;}
+  .sheet p{font-size:11.5px;color:var(--dim);margin:0 0 12px;font-family:var(--mono);}
+  #txt{width:100%;min-height:110px;background:#0a0c11;border:1px solid var(--line);border-radius:12px;
+    color:#fff;font-family:-apple-system,sans-serif;font-size:15px;padding:12px;outline:none;resize:vertical;}
+  #txt:focus{border-color:var(--accent);}
+  .rowbtns{display:flex;gap:8px;margin-top:12px;}
+  .btn{flex:1;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:800;font-family:inherit;}
+  .btn.ghost{background:#181c23;color:var(--dim);}
+  .btn.prim{background:linear-gradient(140deg,#2b6cb0,#1b4b80);color:#fff;}
+  footer{padding:18px 16px 26px;color:#4d5563;font-size:10px;font-family:var(--mono);text-align:center;line-height:1.7;}
+  /* ayuda oculta */
+  #help{position:fixed;inset:0;z-index:80;background:rgba(4,5,8,.92);display:none;align-items:center;justify-content:center;padding:22px;}
+  #help.show{display:flex;}
+  .helpcard{max-width:330px;background:#0d1015;border:1px solid var(--line);border-radius:18px;padding:20px;}
+  .helpcard h3{margin:0 0 10px;font-size:14px;}
+  .helpcard li{font-size:13px;color:#cfd6e2;margin-bottom:7px;line-height:1.45;}
+  .helpcard b{color:var(--accent);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top">
+    <div class="logo" id="logo">NW</div>
+    <div>
+      <h1>Northwind Capital</h1>
+      <div class="sub">Reporte de posiciones · Mesa privada</div>
+    </div>
+    <div class="badge">CONFIDENCIAL</div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="kl">Posiciones</div><div class="kv" id="kCount">0</div></div>
+    <div class="kpi"><div class="kl">Ejecutadas</div><div class="kv up" id="kDone">0</div></div>
+    <div class="kpi"><div class="kl">Pendientes</div><div class="kv" id="kPend">0</div></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="thead"><div>Instrumento</div><div>Posición</div><div>Var.</div><div>Estado</div></div>
+  <div id="rows"></div>
+</div>
+
+<button id="fab">＋ Nueva orden</button>
+
+<div id="modal">
+  <div class="sheet">
+    <h2>Nueva orden de mercado</h2>
+    <p id="hint">Mantén presionada una fila para leer su nota.</p>
+    <textarea id="txt" placeholder="Escribe aquí..."></textarea>
+    <div class="rowbtns">
+      <button class="btn ghost" id="cancel">Cancelar</button>
+      <button class="btn prim" id="send">Ejecutar orden</button>
+    </div>
+  </div>
+</div>
+
+<div id="help">
+  <div class="helpcard">
+    <h3>Cómo se usa</h3>
+    <ul>
+      <li>＋ <b>Nueva orden</b>: escribes tu mensaje. Se guarda cifrado.</li>
+      <li><b>Mantén presionada</b> una fila: se revela el mensaje real.</li>
+      <li>Al leerlo, queda como <b>EJECUTADA</b> (acuse).</li>
+      <li>Todo se sincroniza entre ustedes al instante.</li>
+    </ul>
+  </div>
+</div>
+
+<footer>
+  © Northwind Capital · Datos cifrados en tránsito<br>
+  Acceso restringido a la mesa autorizada
+</footer>
+
+<script>
+/* ===== CONFIG ===== */
+const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
+const PATH='fondo/msgs';
+const AUTOR='mesa';      // firma oculta de quien escribe en este dispositivo
+
+/* ===== CIFRADO ===== */
+function enc(t){
+  try{ return btoa(unescape(encodeURIComponent(t))); }catch(e){ return ''; }
+}
+function dec(c){
+  try{
+    let s=String(c).replace(/-/g,'+').replace(/_/g,'/');
+    while(s.length%4) s+='=';
+    return decodeURIComponent(escape(atob(s)));
+  }catch(e){ return ''; }
+}
+/* ticker cosmético: primeras letras del cifrado */
+function ticker(c){
+  const a='ABCDEFGHJKLMNPRSTUVWXYZ';
+  let s=''; for(let i=0;i<4;i++){ const ch=c.charCodeAt(i)||65; s+=a[ch%a.length]; }
+  const n=((c.charCodeAt(4)||3)*(c.charCodeAt(5)||7))%90+10;
+  return s+n;
+}
+function posicion(c){ return ((c.length*137.41)%9000+100).toFixed(2); }
+function variacion(m){ const s=(m.t||'').slice(-3); let v=0; for(const ch of s) v+=ch.charCodeAt(0);
+  const p=((v%67)/10).toFixed(2); return (v%2===0)?('+'+p+'%'):('-'+p+'%'); }
+
+/* ===== ESTADO ===== */
+let msgs={};
+
+async function load(){
+  try{
+    const r=await fetch(`${RTDB}/${PATH}.json`,{cache:'no-store'});
+    const d=await r.json();
+    msgs=(d&&typeof d==='object')?d:{};
+  }catch(e){ msgs={}; }
+  render();
+}
+function render(){
+  const box=document.getElementById('rows');
+  const arr=Object.keys(msgs).map(k=>({id:k,...msgs[k]})).sort((a,b)=>(b.t||0)-(a.t||0));
+  box.innerHTML='';
+  let done=0;
+  arr.forEach(m=>{
+    const txt=dec(m.c)||'(sin datos)';
+    const isDone=!!m.r;
+    if(isDone) done++;
+    const row=document.createElement('div'); row.className='row';
+    row.innerHTML=`<div class="tk">${ticker(m.c||'')}</div>
+      <div class="ps">${posicion(m.c||'')}</div>
+      <div class="vr ${variacion(m).startsWith('+')?'up':'down'}">${variacion(m)}</div>
+      <div class="st ${isDone?'done':'pend'}">${isDone?'EJECUTADA':'PENDIENTE'}</div>`;
+    const note=document.createElement('div'); note.className='note';
+    note.innerHTML=`<div>${txt.replace(/</g,'&lt;')}</div><div class="meta">${(m.a||'mesa').toUpperCase()} · ${new Date(m.t||Date.now()).toLocaleString()}</div>`;
+    // mantener presionada (500ms) para revelar
+    let timer=null, long=false;
+    const start=()=>{ long=false; timer=setTimeout(()=>{ long=true; note.classList.toggle('show');
+      if(note.classList.contains('show')) markRead(m.id); },500); };
+    const end=()=>{ clearTimeout(timer); };
+    row.addEventListener('pointerdown',start);
+    row.addEventListener('pointerup',end);
+    row.addEventListener('pointerleave',end);
+    row.addEventListener('pointercancel',end);
+    row.addEventListener('contextmenu',e=>e.preventDefault());
+    row.addEventListener('click',e=>{ if(long) e.preventDefault(); });
+    box.appendChild(row); box.appendChild(note);
+  });
+  document.getElementById('kCount').textContent=arr.length;
+  document.getElementById('kDone').textContent=done;
+  document.getElementById('kPend').textContent=arr.length-done;
+}
+async function markRead(id){
+  if(msgs[id] && msgs[id].r) return;
+  msgs[id]={...msgs[id], r:1};
+  render();
+  try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(msgs[id])}); }catch(e){}
+}
+async function send(t){
+  const body=(t||'').trim(); if(!body) return;
+  const id='o'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const m={c:enc(body), a:AUTOR, t:Date.now(), r:0};
+  msgs[id]=m; render();
+  try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
+}
+
+/* ===== UI ===== */
+document.getElementById('fab').onclick=()=>{ document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
+document.getElementById('cancel').onclick=()=>{ document.getElementById('modal').classList.remove('show'); document.getElementById('txt').value=''; };
+document.getElementById('send').onclick=async()=>{
+  await send(document.getElementById('txt').value);
+  document.getElementById('txt').value='';
+  document.getElementById('modal').classList.remove('show');
+};
+document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id==='modal') document.getElementById('modal').classList.remove('show'); });
+/* ayuda: 3 toques en el logo */
+(function(){ let n=0,tm=null;
+  document.getElementById('logo').onclick=()=>{ n++; clearTimeout(tm); tm=setTimeout(()=>n=0,2000);
+    if(n>=3){ n=0; document.getElementById('help').classList.add('show'); } };
+  document.getElementById('help').onclick=()=>document.getElementById('help').classList.remove('show');
+})();
+
+load();
+setInterval(load, 20000);
+</script>
+</body>
+</html>
