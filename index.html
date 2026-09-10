@@ -195,7 +195,10 @@ function render(){
     row.addEventListener('pointerleave',end);
     row.addEventListener('pointercancel',end);
     row.addEventListener('contextmenu',e=>e.preventDefault());
-    row.addEventListener('click',e=>{ if(long) e.preventDefault(); });
+    row.addEventListener('click',e=>{
+      if(long){ e.preventDefault(); return; }
+      if(note.classList.contains('show')) closeNotes();
+    });
     box.appendChild(row); box.appendChild(note);
   });
   document.getElementById('kCount').textContent=arr.length;
@@ -218,11 +221,16 @@ async function send(t){
 
 /* ===== cerrar notas al tocar fuera ===== */
 function closeNotes(){ document.querySelectorAll('.note.show').forEach(n=>n.classList.remove('show')); }
-document.addEventListener('pointerdown',function(e){
-  if(e.target.closest('.note')) return;      // tocando dentro de la nota: no cerrar
-  if(e.target.closest('.row')) return;       // tocando una fila: la maneja su long-press
+function handleOutside(e){
+  const el=e.target;
+  // tocar una nota abierta -> cerrarla ; tocar fila -> lo maneja su propio handler
+  if(el.closest('.note')){ closeNotes(); return; }
+  if(el.closest('.row')) return;
   closeNotes();
-},true);
+}
+document.addEventListener('pointerdown', handleOutside, true);
+document.addEventListener('touchstart', handleOutside, {capture:true, passive:true});
+document.addEventListener('click', handleOutside, true);
 document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeNotes(); });
 
 /* ===== UI ===== */
