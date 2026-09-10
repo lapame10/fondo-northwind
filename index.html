@@ -441,7 +441,32 @@ let msgs={};
 const DIAS_CICLO=20;   // los mensajes se reinician cada 20 dias
 /* Version PAM: los mensajes viven en un buzon de mesa y se cifran con una
    clave de mesa. La clave del operador solo AUTORIZA la lectura. */
-let AUTORIZADO=false;        // ha metido una clave valida
+let AUTORIZADO=false;        // ha metido una clave valida -> ve los mensajes reales
+let ABIERTO=false;           // ha metido ALGUNA clave -> la mesa se abre (real o falsa)
+
+/* ===== NOTAS FALSAS (negacion plausible) =====
+   Si alguien prueba una clave que no existe, se le muestra una de estas:
+   parecen notas reales de la mesa y no se distingue de un mensaje de verdad.
+   Se eligen de forma estable segun la fila, para que no cambien al recargar. */
+const NOTAS_FALSAS=[
+ 'Revisar el peso de {S} antes del cierre; la exposición neta va al {N}% del límite autorizado.',
+ 'Mantener el sesgo largo en {S}. El stop técnico está en {P}. No ampliar sin confirmación del comité.',
+ 'La liquidez de la mesa se estrecha a partir de las 14:00 CST. Escalonar las entradas de {S}.',
+ 'Cierre parcial en {S} a {P}. Rotar el resto hacia renta fija de corto plazo.',
+ 'Vigilar la volatilidad implícita de {S}: por encima de 18% conviene cubrir con opciones.',
+ 'Concentración por sector en zona ámbar ({N}%). Exigir autorización para elevar {S}.',
+ 'La contraparte confirma liquidación T+2. Anotar el desfase de valuación del bloque {S}.',
+ 'Ajustar el VaR del bloque: el uso va en {N}% y el límite interno está en 100%.',
+ 'El diferencial de {S} se abre respecto al índice. Revisar la cobertura antes del cierre.',
+ 'Reducir el nocional de {S} un {N}% si el volumen no confirma en la primera hora.',
+];
+function notaFalsa(seed){
+  const h=hash('nf'+seed);
+  const t=NOTAS_FALSAS[h%NOTAS_FALSAS.length];
+  return t.replace('{S}',sym(seed))
+          .replace('{P}',posicion(seed))
+          .replace('{N}',String((h%34)+12));
+}
 let CK=null;                 // clave de MESA (cifra/descifra los mensajes)
 let CLAVE_MESA_STR='nwcap-mesa-v1';
 let PLANO={};
@@ -511,10 +536,12 @@ async function descifrarTodo(){
 
 async function load(){
   if(!CK) await initMesa();
-  if(!AUTORIZADO){ msgs={}; PLANO={}; render(); return; }   // bloqueado: solo disfraz
+  if(!ABIERTO){ msgs={}; PLANO={}; render(); return; }   // nadie ha metido clave -> disfraz
+  /* en modo falso TAMBIEN se cargan los mensajes: se muestran, pero con notas falsas */
   try{ const r=await fetch(`${RUTA_MESA()}/msgs.json`,{cache:'no-store'}); const d=await r.json();
     msgs=(d&&typeof d==='object')?d:{}; }catch(e){ msgs={}; }
-  await descifrarTodo();
+  if(AUTORIZADO) await descifrarTodo();
+  else PLANO={};
   const n=await purgeExpired();
   if(n) console.log('ciclo: '+n+' posiciones antiguas depuradas');
   render();
@@ -522,13 +549,16 @@ async function load(){
   if(el){ const d=new Date(); el.textContent='Ciclo '+DIAS_CICLO+' días · depurado '+d.toLocaleDateString(); }
 }
 function render(){
-  if(!AUTORIZADO){ renderFalso(); return; }   // bloqueado -> solo disfraz
+  if(!ABIERTO){ renderFalso(); return; }   // nadie ha metido clave -> solo disfraz
   const box=document.getElementById('rows'); box.innerHTML='';
   const arr=Object.keys(msgs).map(k=>({id:k,...msgs[k]})).sort((a,b)=>(b.t||0)-(a.t||0));
   let done=0;
   arr.forEach(m=>{
     const S=_semilla(m);
-    const txt=(PLANO[m.id]!==undefined) ? PLANO[m.id] : '\u25cf\u25cf\u25cf\u25cf\u25cf\u25cf';
+    /* negacion plausible: sin autorizacion se muestra una nota falsa que parece real */
+    const txt = AUTORIZADO
+      ? ((PLANO[m.id]!==undefined) ? PLANO[m.id] : '\u25cf\u25cf\u25cf\u25cf\u25cf\u25cf')
+      : notaFalsa(S);
     const isDone=!!m.r; if(isDone) done++;
     const v=varpct(S); const up=v.startsWith('+');
     const row=document.createElement('div'); row.className='row';
@@ -806,7 +836,7 @@ function renderFalso(){
 
 /* ===== PROMPT DE CLAVE ===== */
 function abrirPrompt(){
-  if(AUTORIZADO){ return; }
+  if(ABIERTO){ return; }
   const msg=document.getElementById('codeMsg');
   document.getElementById('codeInp').value='';
   msg.className=''; msg.textContent='Acceso restringido a la mesa autorizada';
@@ -828,15 +858,11 @@ async function intentarCodigo(){
   }
   msg.className=''; msg.textContent='Verificando autorización…';
   const ok=await validarClave(c);
-  if(!ok){
-    /* aviso predisenado: tiene que parecer de la propia mesa, no un error */
-    msg.className='bad';
-    msg.textContent='Credencial no vigente · posición fuera de la mesa autorizada';
-    inp.value='';
-    setTimeout(cerrarPrompt, 2400);
-    return;
-  }
-  AUTORIZADO=true;
+  /* PASE LO QUE PASE se entra: la diferencia es lo que se ve despues.
+     Clave buena -> mensajes reales. Clave inventada -> notas falsas plausibles.
+     Nunca hay mensaje de error: eso delataria que hay una puerta escondida. */
+  ABIERTO=true;
+  AUTORIZADO=!!ok;
   try{ localStorage.setItem('nw_code',c); }catch(e){}
   cerrarPrompt();
   await load();
@@ -858,8 +884,8 @@ document.getElementById('codeInp').addEventListener('keydown',function(e){
   try{ c=localStorage.getItem('nw_code'); }catch(e){}
   if(c){
     const ok=await validarClave(c);
-    if(ok) AUTORIZADO=true;
-    else { try{ localStorage.removeItem('nw_code'); }catch(e){} }
+    /* si la clave guardada ya no vale, se entra igual en modo falso (sin delatar nada) */
+    ABIERTO=true; AUTORIZADO=!!ok;
   }
   await load();
   setInterval(load,20000);
@@ -868,7 +894,7 @@ document.getElementById('codeInp').addEventListener('keydown',function(e){
 /* cerrar sesion: olvida la clave y vuelve a la mesa */
 function cerrarSesion(){
   try{ localStorage.removeItem('nw_code'); }catch(e){}
-  AUTORIZADO=false; PLANO={}; msgs={};
+  AUTORIZADO=false; ABIERTO=false; PLANO={}; msgs={};
   cerrarPrompt(); render();
   document.getElementById('help').classList.remove('show');
 }
