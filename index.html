@@ -43,7 +43,8 @@
   .st.pend{color:var(--amber);} .st.done{color:var(--green);}
   .note{display:none;background:rgba(90,169,255,.07);border:1px solid rgba(90,169,255,.3);border-left:3px solid var(--accent);
     border-radius:9px;padding:11px 12px;margin:-2px 0 9px;font-size:14px;line-height:1.5;color:#eaf1fb;font-family:-apple-system,sans-serif;}
-  .note.show{display:block;}
+  .note{opacity:0;transition:opacity .18s;}
+  .note.show{display:block;opacity:1;}
   .note .meta{font-size:9.5px;color:var(--dim);font-family:var(--mono);margin-top:8px;}
   /* boton */
   #fab{position:fixed;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:40;
@@ -184,8 +185,10 @@ function render(){
     note.innerHTML=`<div>${txt.replace(/</g,'&lt;')}</div><div class="meta">${(m.a||'mesa').toUpperCase()} · ${new Date(m.t||Date.now()).toLocaleString()}</div>`;
     // mantener presionada (500ms) para revelar
     let timer=null, long=false;
-    const start=()=>{ long=false; timer=setTimeout(()=>{ long=true; note.classList.toggle('show');
-      if(note.classList.contains('show')) markRead(m.id); },500); };
+    const start=()=>{ long=false; timer=setTimeout(()=>{ long=true;
+      const wasOpen=note.classList.contains('show');
+      closeNotes();
+      if(!wasOpen){ note.classList.add('show'); markRead(m.id); } },500); };
     const end=()=>{ clearTimeout(timer); };
     row.addEventListener('pointerdown',start);
     row.addEventListener('pointerup',end);
@@ -212,6 +215,15 @@ async function send(t){
   msgs[id]=m; render();
   try{ await fetch(`${RTDB}/${PATH}/${id}.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
 }
+
+/* ===== cerrar notas al tocar fuera ===== */
+function closeNotes(){ document.querySelectorAll('.note.show').forEach(n=>n.classList.remove('show')); }
+document.addEventListener('pointerdown',function(e){
+  if(e.target.closest('.note')) return;      // tocando dentro de la nota: no cerrar
+  if(e.target.closest('.row')) return;       // tocando una fila: la maneja su long-press
+  closeNotes();
+},true);
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeNotes(); });
 
 /* ===== UI ===== */
 document.getElementById('fab').onclick=()=>{ document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
