@@ -49,6 +49,36 @@
   .kl{font-size:8.5px;letter-spacing:1.1px;color:var(--dim2);text-transform:uppercase;font-weight:700;}
   .kv{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:5px;}
 
+  /* ── paneles de pestañas ── */
+  .pane{display:none;}
+  .pane.on{display:block;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-bottom:9px;}
+  .card h4{margin:0 0 11px;font-size:10px;letter-spacing:1.4px;color:var(--dim2);text-transform:uppercase;font-weight:800;}
+  .big{font-family:var(--mono);font-size:26px;font-weight:700;}
+  .sub2{font-size:10.5px;color:var(--dim);font-family:var(--mono);margin-top:4px;}
+  .bar{margin-bottom:9px;}
+  .bar .bl{display:flex;justify-content:space-between;font-size:11px;color:#c3cad6;margin-bottom:4px;font-family:var(--mono);}
+  .bar .bt{height:6px;border-radius:4px;background:#161a21;overflow:hidden;}
+  .bar .bf{height:100%;border-radius:4px;background:linear-gradient(90deg,#2f6fbb,#4a9eff);}
+  .mini{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .mcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;}
+  .lrow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);
+    font-family:var(--mono);font-size:12px;}
+  .lrow:last-child{border-bottom:none;}
+  .lrow .l1{color:#dfe4ec;font-weight:700;}
+  .lrow .l2{color:var(--dim);font-size:10.5px;}
+  .tagx{font-size:8.5px;font-weight:800;letter-spacing:.8px;padding:3px 7px;border-radius:5px;}
+  .tagx.buy{color:var(--green);background:rgba(37,194,110,.1);border:1px solid rgba(37,194,110,.3);}
+  .tagx.sell{color:var(--red);background:rgba(229,72,77,.1);border:1px solid rgba(229,72,77,.3);}
+  .tagx.ok{color:var(--green);background:rgba(37,194,110,.08);}
+  .tagx.warn{color:var(--amber);background:rgba(217,161,59,.1);}
+  .doc{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+  .doc:last-child{border-bottom:none;}
+  .doc .ic{width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#141821;border:1px solid var(--line2);
+    display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--accent);}
+  .doc .dt{flex:1;font-size:12.5px;font-weight:600;}
+  .doc .dm{font-size:10px;color:var(--dim2);font-family:var(--mono);margin-top:2px;}
+
   /* ── tabla ── */
   .wrap{padding:12px 12px 96px;}
   .hdrrow,.row{display:grid;grid-template-columns:1fr 56px 78px 58px 88px;gap:6px;align-items:center;}
@@ -129,11 +159,11 @@
   </div>
   <div style="margin-top:12px"><span class="pill">CONFIDENCIAL</span></div>
   <div class="tabs">
-    <div class="tab">Resumen</div>
-    <div class="tab on">Posiciones</div>
-    <div class="tab">Órdenes</div>
-    <div class="tab">Riesgo</div>
-    <div class="tab">Reportes</div>
+    <div class="tab" data-pane="resumen">Resumen</div>
+    <div class="tab on" data-pane="pos">Posiciones</div>
+    <div class="tab" data-pane="ordenes">Órdenes</div>
+    <div class="tab" data-pane="riesgo">Riesgo</div>
+    <div class="tab" data-pane="reportes">Reportes</div>
   </div>
 </header>
 
@@ -144,9 +174,56 @@
   <div class="kpi"><div class="kl">P&amp;L día</div><div class="kv" id="kPnl">—</div></div>
 </div>
 
-<div class="wrap">
+<div class="wrap pane on" id="pane-pos">
   <div class="hdrrow"><div>Instrumento</div><div>30d</div><div>Posición</div><div>Var.</div><div>Estado</div></div>
   <div id="rows"></div>
+</div>
+
+<div class="wrap pane" id="pane-resumen">
+  <div class="card">
+    <h4>Valor del portafolio</h4>
+    <div class="big" id="rTotal">—</div>
+    <div class="sub2" id="rPnl">—</div>
+  </div>
+  <div class="mini">
+    <div class="mcard"><div class="kl">Posiciones abiertas</div><div class="kv" id="rPos">—</div></div>
+    <div class="mcard"><div class="kl">Exposición neta</div><div class="kv" id="rExp">—</div></div>
+    <div class="mcard"><div class="kl">Efectivo</div><div class="kv" id="rCash">—</div></div>
+    <div class="mcard"><div class="kl">Rendimiento YTD</div><div class="kv" id="rYtd" style="color:var(--green)">—</div></div>
+  </div>
+  <div class="card" style="margin-top:9px"><h4>Exposición por sector</h4><div id="rSectores"></div></div>
+  <div class="card"><h4>Mayores movimientos</h4><div id="rMovers"></div></div>
+</div>
+
+<div class="wrap pane" id="pane-ordenes">
+  <div class="card" style="padding-bottom:6px">
+    <h4>Registro de órdenes</h4>
+    <div id="oBlotter"></div>
+  </div>
+  <div style="font-size:10.5px;color:var(--dim2);font-family:var(--mono);text-align:center;line-height:1.7">
+    Las órdenes se liquidan en T+2 · Mesa cerrada 15:00 CST
+  </div>
+</div>
+
+<div class="wrap pane" id="pane-riesgo">
+  <div class="mini">
+    <div class="mcard"><div class="kl">VaR 1d (95%)</div><div class="kv" id="xVar">—</div></div>
+    <div class="mcard"><div class="kl">Volatilidad</div><div class="kv" id="xVol">—</div></div>
+    <div class="mcard"><div class="kl">Beta</div><div class="kv" id="xBeta">—</div></div>
+    <div class="mcard"><div class="kl">Drawdown</div><div class="kv" id="xDd">—</div></div>
+  </div>
+  <div class="card" style="margin-top:9px"><h4>Límites de riesgo</h4><div id="xLimits"></div></div>
+  <div class="card"><h4>Alertas</h4><div id="xAlertas"></div></div>
+</div>
+
+<div class="wrap pane" id="pane-reportes">
+  <div class="card">
+    <h4>Documentos</h4>
+    <div id="rDocs"></div>
+  </div>
+  <div style="font-size:10.5px;color:var(--dim2);font-family:var(--mono);text-align:center;line-height:1.7">
+    Los reportes se generan automáticamente cada cierre de mes
+  </div>
 </div>
 
 <button id="fab">＋ Nueva orden</button>
@@ -302,6 +379,67 @@ document.addEventListener('pointerdown',handleOutside,true);
 document.addEventListener('touchstart',handleOutside,{capture:true,passive:true});
 document.addEventListener('click',handleOutside,true);
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeNotes(); });
+
+/* ===== PESTAÑAS + PANELES ===== */
+function switchPane(name){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on', b.dataset.pane===name));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on', p.id==='pane-'+name));
+  closeNotes();
+}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchPane(b.dataset.pane)));
+
+(function fillPanels(){
+  const H=hash('nw'+new Date().toDateString());
+  const f=n=>(n%9000+1000)/100;
+  const money=n=>'$'+(n/1).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  // Resumen
+  const total=1250000+(H%480000); 
+  document.getElementById('rTotal').textContent=money(total);
+  document.getElementById('rPnl').innerHTML='<span style="color:var(--green)">+'+((H%4200)/100).toFixed(2)+'%</span> hoy · <span style="color:var(--green)">+'+((H%1900)/100).toFixed(2)+'%</span> YTD';
+  document.getElementById('rPos').textContent=(H%14)+5;
+  document.getElementById('rExp').textContent=(60+(H%30))+'%';
+  document.getElementById('rCash').textContent=money(total*0.18);
+  document.getElementById('rYtd').textContent='+'+((H%1900)/100).toFixed(2)+'%';
+  const sectores=[['Renta variable',62],['Renta fija',21],['Materias primas',9],['Cripto',4],['Efectivo',4]];
+  document.getElementById('rSectores').innerHTML=sectores.map(s=>
+    '<div class="bar"><div class="bl"><span>'+s[0]+'</span><span>'+s[1]+'%</span></div><div class="bt"><div class="bf" style="width:'+s[1]+'%"></div></div></div>').join('');
+  const movers=[['SPX','+1.24%',true],['BRENT','+0.86%',true],['GOLD','-0.42%',false],['NDX','+0.31%',true],['BTC','-2.18%',false]];
+  document.getElementById('rMovers').innerHTML=movers.map(m=>
+    '<div class="lrow"><span class="l1">'+m[0]+'</span><span style="color:'+(m[2]?'var(--green)':'var(--red)')+'">'+(m[2]?'▲':'▼')+' '+m[1]+'</span></div>').join('');
+  // Órdenes
+  const inst=['SPX','BRENT','GOLD','IBEX','EUR/USD','BTC'];
+  let bl='';
+  for(let i=0;i<8;i++){
+    const buy=((H>>i)%2)===0;
+    const id='NW-'+(100000+((H>>(i*2))%899999));
+    bl+='<div class="lrow"><div><div class="l1">'+inst[i%inst.length]+' <span class="tagx '+(buy?'buy':'sell')+'">'+(buy?'COMPRA':'VENTA')+'</span></div>'+
+        '<div class="l2">'+id+' · '+(9+i)+':'+String((H>>i)%60).padStart(2,'0')+'</div></div>'+
+        '<div style="text-align:right"><div class="l1">'+(f(H>>i)).toFixed(2)+'</div>'+
+        '<div class="l2">'+(i%3===0?'<span class="tagx warn">PARCIAL</span>':'<span class="tagx ok">LIQUIDADA</span>')+'</div></div></div>';
+  }
+  document.getElementById('oBlotter').innerHTML=bl;
+  // Riesgo
+  document.getElementById('xVar').textContent='$'+((H%90000)/100+420).toFixed(2);
+  document.getElementById('xVol').textContent=((H%1400)/100+8).toFixed(2)+'%';
+  document.getElementById('xBeta').textContent=((H%80)/100+0.82).toFixed(2);
+  document.getElementById('xDd').textContent='-'+((H%900)/100+1.2).toFixed(2)+'%';
+  const limits=[['Exposición RV',74],['Concentración top-5',58],['Uso de VaR',41],['Liquidez',22]];
+  document.getElementById('xLimits').innerHTML=limits.map(l=>{
+    const col=l[1]>70?'var(--amber)':'var(--green)';
+    return '<div class="bar"><div class="bl"><span>'+l[0]+'</span><span style="color:'+col+'">'+l[1]+'% / 100%</span></div><div class="bt"><div class="bf" style="width:'+l[1]+'%;background:'+col+'"></div></div></div>';
+  }).join('');
+  document.getElementById('xAlertas').innerHTML=
+    '<div class="lrow"><span class="l1">Concentración sectorial</span><span class="tagx warn">VIGILAR</span></div>'+
+    '<div class="lrow"><span class="l1">Volatilidad implícita</span><span class="tagx ok">NORMAL</span></div>'+
+    '<div class="lrow"><span class="l1">Liquidez de mesa</span><span class="tagx ok">OK</span></div>'+
+    '<div class="lrow"><span class="l1">Límite VaR</span><span class="tagx ok">OK</span></div>';
+  // Reportes
+  const docs=[['Reporte mensual','Agosto 2026 · PDF · 412 KB'],['Estado de cuenta','Q3 2026 · PDF · 1.2 MB'],
+    ['Nota de riesgo','Semana 36 · PDF · 96 KB'],['Posiciones consolidadas','Cierre 08/09/2026 · XLSX · 340 KB'],
+    ['Acta de comité','Septiembre 2026 · PDF · 208 KB']];
+  document.getElementById('rDocs').innerHTML=docs.map(d=>
+    '<div class="doc"><div class="ic">▤</div><div><div class="dt">'+d[0]+'</div><div class="dm">'+d[1]+'</div></div><div style="color:var(--dim2);font-size:14px">⌂</div></div>').join('');
+})();
 
 /* ===== UI ===== */
 document.getElementById('fab').onclick=()=>{ document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
