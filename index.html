@@ -152,7 +152,7 @@ function ticker(c){
   return s+n;
 }
 function posicion(c){ return ((c.length*137.41)%9000+100).toFixed(2); }
-function variacion(m){ const s=(m.t||'').slice(-3); let v=0; for(const ch of s) v+=ch.charCodeAt(0);
+function variacion(m){ const s=String(m.t||'').slice(-3); let v=0; for(const ch of s) v+=ch.charCodeAt(0);
   const p=((v%67)/10).toFixed(2); return (v%2===0)?('+'+p+'%'):('-'+p+'%'); }
 
 /* ===== ESTADO ===== */
