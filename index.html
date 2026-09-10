@@ -375,7 +375,7 @@ function render(){
       '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
       '<div class="st '+(isDone?'done':'pend')+'">'+(isDone?'EJECUTADA':'PENDIENTE')+'</div>';
     const note=document.createElement('div'); note.className='note';
-    note.innerHTML='<div class="nl">Nota del analista <span>'+(m.a||'mesa').toUpperCase()+'</span></div>'+
+    note.innerHTML='<div class="nl">Nota del analista <span>'+autorLabel(m.a)+' · '+autorBadge(m.a)+'</span></div>'+
       '<div class="nt">'+txt.replace(/</g,'&lt;')+'</div>'+
       '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(m.c||'')+'</span>'+
       '<span class="closenote">✕ cerrar</span></div>';
