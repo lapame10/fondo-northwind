@@ -227,7 +227,9 @@ function closeNotes(){ document.querySelectorAll('.note.show').forEach(n=>n.clas
 function handleOutside(e){
   const el=e.target;
   // tocar una nota abierta -> cerrarla ; tocar fila -> lo maneja su propio handler
-  if(el.closest('.note')){ closeNotes(); return; }
+  if(el.closest('.closenote')){ closeNotes(); return; }
+  if(el.closest('.note')) return;   // tocando la nota: no cerrar (usa ✕)
+
   if(el.closest('.row')) return;
   closeNotes();
 }
