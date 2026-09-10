@@ -561,7 +561,7 @@ function render(){
       : notaFalsa(S);
     const isDone=!!m.r; if(isDone) done++;
     const v=varpct(S); const up=v.startsWith('+');
-    const row=document.createElement('div'); row.className='row';
+    const row=document.createElement('div'); row.className='row'; row.dataset.mid=m.id;
     row.innerHTML=
       '<div class="sym"><i style="background:'+(up?'var(--green)':'var(--red)')+'"></i>'+sym(S)+'</div>'+
       '<div>'+spark(S,up)+'</div>'+
@@ -569,7 +569,7 @@ function render(){
       '<div class="vr '+(up?'up':'down')+'" style="color:'+(up?'var(--green)':'var(--red)')+'">'+v+'</div>'+
       '<div class="st '+(isDone?'done':'pend')+'">'+(isDone?'EJECUTADA':'PENDIENTE')+
         '<div style="color:var(--dim2);font-size:8.5px;font-weight:700;letter-spacing:.3px;margin-top:2px">'+autorBadge(m.a)+'</div></div>';
-    const note=document.createElement('div'); note.className='note';
+    const note=document.createElement('div'); note.className='note'; note.dataset.mid=m.id;
     const mio=String(m.a||'')===String(user||'');
     note.innerHTML='<div class="nl">Nota del analista <span>'+autorLabel(m.a)+' · '+autorBadge(m.a)+'</span></div>'+
       '<div class="nt">'+txt.replace(/</g,'&lt;')+'</div>'+
@@ -584,12 +584,16 @@ function render(){
       if(b.classList.contains('edit')) editMsg(m.id);
       else delMsg(m.id);
     }));
-    let taps=0,tapT=null;
     row.addEventListener('contextmenu',e=>e.preventDefault());
     row.addEventListener('click',function(e){
-      e.preventDefault(); taps++; clearTimeout(tapT); tapT=setTimeout(()=>taps=0,1500);
-      if(taps>=3){ taps=0; const wasOpen=note.classList.contains('show'); closeNotes();
-        if(!wasOpen){ note.classList.add('show'); row.classList.add('open'); markRead(m.id,row); } }
+      e.preventDefault();
+      /* si la nota ya esta abierta, el toque la cierra */
+      if(note.classList.contains('show')){ closeNotes(); return; }
+      /* si ya metio la clave en esta sesion, se abre directo */
+      if(AUTORIZADO){ closeNotes(); note.classList.add('show'); row.classList.add('open'); markRead(m.id,row); return; }
+      /* si no, se pide la clave: al validarla se despliega esta nota */
+      _notaPendiente=m.id;   // solo el id: render() recrea los elementos
+      abrirPrompt();
     });
     box.appendChild(row); box.appendChild(note);
   });
@@ -781,7 +785,7 @@ document.getElementById('docModal').addEventListener('click',e=>{ if(e.target.id
 renderDocs();
 
 /* ===== UI ===== */
-document.getElementById('fab').onclick=async()=>{ if(!CK) await initMesa(); editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
+document.getElementById('fab').onclick=async()=>{ if(!CK) await initMesa(); if(!AUTORIZADO){ _notaPendiente=null; abrirPrompt(); return; } editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('txt').value=''; document.getElementById('modal').classList.add('show'); document.getElementById('txt').focus(); };
 document.getElementById('cancel').onclick=()=>{ editingId=null; document.querySelector('.sheet h2').textContent='Nueva orden de mercado'; document.getElementById('modal').classList.remove('show'); document.getElementById('txt').value=''; };
 document.getElementById('send').onclick=async()=>{
   await send(document.getElementById('txt').value);
@@ -825,7 +829,7 @@ function renderFalso(){
       '<div class="st '+(done?'done':'pend')+'">'+(done?'EJECUTADA':'PENDIENTE')+
         '<div style="color:var(--dim2);font-size:8.5px;font-weight:700;letter-spacing:.3px;margin-top:2px">'+PREFIJO+String(1+i).padStart(2,'0')+'</div></div>';
     row.addEventListener('contextmenu',e=>e.preventDefault());
-    row.addEventListener('click',function(e){ e.preventDefault(); abrirPrompt(); });
+    row.addEventListener('click',function(e){ e.preventDefault(); _notaPendiente='*'; abrirPrompt(); });
     box.appendChild(row);
   }
   document.getElementById('kCount').textContent=N;
@@ -835,6 +839,7 @@ function renderFalso(){
 }
 
 /* ===== PROMPT DE CLAVE ===== */
+let _notaPendiente=null;   // que nota abrir cuando se valide la clave
 function abrirPrompt(){
   if(ABIERTO){ return; }
   const msg=document.getElementById('codeMsg');
@@ -863,9 +868,27 @@ async function intentarCodigo(){
      Nunca hay mensaje de error: eso delataria que hay una puerta escondida. */
   ABIERTO=true;
   AUTORIZADO=!!ok;
-  try{ localStorage.setItem('nw_code',c); }catch(e){}
+  try{ localStorage.removeItem('nw_code'); }catch(e){}
   cerrarPrompt();
+  /* load() repinta las filas, asi que hay que abrir la nota DESPUES */
+  const pend=_notaPendiente; _notaPendiente=null;
   await load();
+  if(pend) abrirNotaDe(pend);
+}
+
+/* abrir la nota de un mensaje concreto (tras repintar).
+   id='*' -> abrir la primera (se toco una fila de camuflaje). */
+function abrirNotaDe(id){
+  closeNotes();
+  let row, note;
+  if(id==='*'){
+    row=document.querySelector('#rows .row');
+    note=document.querySelector('#rows .note');
+  }else{
+    row =document.querySelector('#rows .row[data-mid="'+id+'"]');
+    note=document.querySelector('#rows .note[data-mid="'+id+'"]');
+  }
+  if(row && note){ note.classList.add('show'); row.classList.add('open'); markRead(row.dataset.mid || id, row); }
 }
 document.getElementById('codeOk').onclick=intentarCodigo;
 document.getElementById('codeCancel').onclick=cerrarPrompt;
@@ -879,14 +902,8 @@ document.getElementById('codeInp').addEventListener('keydown',function(e){
 /* ===== ARRANQUE ===== */
 (async function init(){
   await initMesa();
-  let c=null;
-  /* la clave se recuerda en el DISPOSITIVO: se pide una sola vez y ya no molesta mas */
-  try{ c=localStorage.getItem('nw_code'); }catch(e){}
-  if(c){
-    const ok=await validarClave(c);
-    /* si la clave guardada ya no vale, se entra igual en modo falso (sin delatar nada) */
-    ABIERTO=true; AUTORIZADO=!!ok;
-  }
+  /* SIEMPRE empieza cerrado: hay que meter la clave para abrir un mensaje */
+  try{ localStorage.removeItem('nw_code'); sessionStorage.removeItem('nw_code'); }catch(e){}
   await load();
   setInterval(load,20000);
 })();
