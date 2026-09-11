@@ -418,7 +418,7 @@
 </footer>
 
 <script>
-const BUILD='nw6';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw7';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
@@ -623,6 +623,23 @@ function diagLineas(){
   L.push('instalada (standalone): '+(window.navigator.standalone===true));
   L.push('_swListo: '+_swListo);
   L.push('error SW: '+(_swError||'(ninguno)'));
+  L.push('--- NUMERITO ---');
+  L.push('yo soy: '+(user||'(sin asignar)'));
+  L.push('entradas en total: '+Object.keys(msgs||{}).length);
+  L.push('sin ver (el numero): '+sinVer());
+  const idsSinVer=[];
+  Object.keys(msgs||{}).forEach(function(id){
+    const m=msgs[id]; if(!m) return;
+    if(user && String(m.a||'')===String(user)) return;
+    if(VISTOS[id]) return;
+    idsSinVer.push(id.slice(0,8)+':'+String(m.a));
+  });
+  L.push('cuales: '+(idsSinVer.length?idsSinVer.join(' '):'ninguna'));
+  L.push('ids ya vistos: '+Object.keys(VISTOS).length);
+  L.push('--- AUTORES ---');
+  const aut={};
+  Object.keys(msgs||{}).forEach(function(id){ const a=String((msgs[id]||{}).a||'?'); aut[a]=(aut[a]||0)+1; });
+  Object.keys(aut).forEach(function(a){ L.push('  '+a+': '+aut[a]+(a===String(user)?'  <- YO':'')); });
   if(navigator.serviceWorker){
     L.push('controller: '+(navigator.serviceWorker.controller?navigator.serviceWorker.controller.scriptURL.split('/').pop():'ninguno aun'));
   }
@@ -1164,8 +1181,12 @@ function abrirNotaDe(id){
     row =document.querySelector('#rows .row[data-mid="'+id+'"]');
     note=document.querySelector('#rows .note[data-mid="'+id+'"]');
   }
-  if(row && note){ note.classList.add('show'); row.classList.add('open'); markRead(row.dataset.mid || id, row);
-    setTimeout(function(){ note.scrollIntoView({block:'nearest',behavior:'smooth'}); },120); }
+  if(row && note){
+    note.classList.add('show'); row.classList.add('open');
+    markRead(row.dataset.mid || id, row);
+    limpiarUna(row.dataset.mid || id);          // ya la abriste: deja de contar
+    setTimeout(function(){ note.scrollIntoView({block:'nearest',behavior:'smooth'}); },120);
+  }
 }
 document.getElementById('codeOk').onclick=intentarCodigo;
 document.getElementById('codeCancel').onclick=cerrarPrompt;
@@ -1235,17 +1256,15 @@ function cerrarSesion(){
     });
   }
 
-  /* ===== MARCAR COMO VISTO =====
-   Cuando la app esta en pantalla y pasan unos segundos, ya la viste: se limpia el
-   numerito. Asi el "1" significa "hay algo que todavia no has abierto". */
-  function limpiarAlPoco(){
-    if(document.hidden) return;
-    setTimeout(function(){ if(!document.hidden) marcarTodoVisto(); }, 6000);
+  /* ===== CUANDO SE LIMPIA EL NUMERO =====
+   Se limpia al ABRIR una entrada, que es cuando de verdad la viste. Antes se borraba
+   solo a los 6 s de tener la app abierta, y por eso el "1" no se alcanzaba a ver. */
+  function limpiarUna(id){
+    if(!id || VISTOS[id]) return;
+    VISTOS[id]=1;
+    try{ localStorage.setItem(LS_VISTOS,JSON.stringify(VISTOS)); }catch(e){}
+    pintarBadge();
   }
-  document.addEventListener('visibilitychange', function(){
-    if(!document.hidden) limpiarAlPoco();
-  });
-  limpiarAlPoco();
   /* pedir el permiso al primer toque (Apple no deja pedirlo al abrir) */
   document.addEventListener('pointerdown', pedirPermiso, {once:true});
   document.addEventListener('click', pedirPermiso, {once:true});
