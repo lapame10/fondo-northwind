@@ -422,7 +422,7 @@
 </footer>
 
 <script>
-const BUILD='nw8';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw9';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
@@ -567,7 +567,10 @@ function sinVer(){
   Object.keys(msgs||{}).forEach(function(id){
     const m=msgs[id]; if(!m) return;
     if(user && String(m.a||'')===String(user)) return;   // la escribi yo: no cuenta
-    if(VISTOS[id]) return;                                // ya la vi
+    /* `r` vive en el SERVIDOR: si se abrio desde cualquier dispositivo, no cuenta.
+       Esto es lo que faltaba: al abrir desde Safari, el telefono no se enteraba. */
+    if(m.r) return;
+    if(VISTOS[id]) return;                                // respaldo local
     n++;
   });
   return n;
@@ -635,11 +638,18 @@ function diagLineas(){
   Object.keys(msgs||{}).forEach(function(id){
     const m=msgs[id]; if(!m) return;
     if(user && String(m.a||'')===String(user)) return;
-    if(VISTOS[id]) return;
+    if(m.r || VISTOS[id]) return;
     idsSinVer.push(id.slice(0,8)+':'+String(m.a));
   });
   L.push('cuales: '+(idsSinVer.length?idsSinVer.join(' '):'ninguna'));
-  L.push('ids ya vistos: '+Object.keys(VISTOS).length);
+  L.push('ids ya vistos (local): '+Object.keys(VISTOS).length);
+  L.push('--- POR QUE CUENTAN ---');
+  Object.keys(msgs||{}).forEach(function(id){
+    const m=msgs[id]||{};
+    const mio = user && String(m.a||'')===String(user);
+    const leido = m.r || VISTOS[id];
+    L.push('  '+id.slice(0,7)+' '+(String(m.a))+(mio?' [MIA]':'')+(leido?' [ya abierta]':' [CUENTA]'));
+  });
   L.push('--- AUTORES ---');
   const aut={};
   Object.keys(msgs||{}).forEach(function(id){ const a=String((msgs[id]||{}).a||'?'); aut[a]=(aut[a]||0)+1; });
