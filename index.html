@@ -180,10 +180,14 @@
   .diag .dl div{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05);word-break:break-all;}
   .diag .dbtn{margin-top:10px;text-align:center;color:var(--accent);font-weight:700;cursor:pointer;
     padding:6px;border:1px solid rgba(74,158,255,.35);border-radius:8px;}
-  .sinver{display:none;align-items:center;justify-content:center;min-width:15px;height:15px;
-    padding:0 4px;margin-left:5px;border-radius:8px;background:var(--red);color:#fff;
-    font-size:9.5px;font-weight:800;line-height:1;font-family:var(--mono);
-    vertical-align:middle;box-shadow:0 0 0 2px rgba(229,72,77,.22);}
+  /* el numerito: junto al nombre, se ve en cualquier pestaña */
+  .sinver{display:none;align-items:center;justify-content:center;min-width:16px;height:16px;
+    padding:0 5px;margin-left:7px;border-radius:9px;background:var(--red);color:#fff;
+    font-size:10px;font-weight:800;line-height:1;font-family:var(--mono);
+    vertical-align:middle;box-shadow:0 0 0 2px rgba(229,72,77,.28);}
+  .sinver:not([style*="none"]){animation:laten 2.4s ease-in-out infinite;}
+  @keyframes laten{0%,100%{box-shadow:0 0 0 2px rgba(229,72,77,.28)}
+                   50%{box-shadow:0 0 0 5px rgba(229,72,77,.12)}}
   /* las ✕ tienen que verse y poder pulsarse comodamente con el dedo */
   .note .nl .closenote{color:#c9d4e2;background:rgba(255,255,255,.07);
     border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:4px 9px;
@@ -279,7 +283,7 @@
   <div class="top">
     <div class="logo" id="logo">NW</div>
     <div>
-      <div class="fname">Northwind Capital</div>
+      <div class="fname">Northwind Capital<span id="sinver" class="sinver"></span></div>
       <div class="fsub">Mesa privada · Portafolio global</div>
     </div>
     <div class="live"><span class="dot"></span><span id="clock">--:--:--</span><span id="btnAvisos" class="btnavisos" title="activar avisos">🔔</span></div>
@@ -288,7 +292,7 @@
   <div class="tabs">
     <div class="tab" data-pane="resumen">Resumen</div>
     <div class="tab on" data-pane="pos">Posiciones</div>
-    <div class="tab" data-pane="ordenes">Órdenes<span id="sinver" class="sinver"></span></div>
+    <div class="tab" data-pane="ordenes">Órdenes</div>
     <div class="tab" data-pane="riesgo">Riesgo</div>
     <div class="tab" data-pane="reportes">Reportes</div>
   </div>
@@ -418,7 +422,7 @@
 </footer>
 
 <script>
-const BUILD='nw7';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw8';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
