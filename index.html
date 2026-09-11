@@ -199,6 +199,7 @@
     font-size:10px;letter-spacing:.4px;font-weight:700;line-height:1;
     -webkit-tap-highlight-color:transparent;}
   .note .nm .closenote:active{background:rgba(255,255,255,.18);}
+  .anrow{display:flex;gap:8px;margin-top:10px;}
   .anbtn{font-size:10.5px;font-weight:800;font-family:var(--mono);border-radius:7px;padding:6px 10px;cursor:pointer;}
   .anbtn.edit{color:var(--accent);background:rgba(74,158,255,.09);border:1px solid rgba(74,158,255,.35);}
   .anbtn.del{color:var(--red);background:rgba(229,72,77,.09);border:1px solid rgba(229,72,77,.35);}
@@ -422,7 +423,7 @@
 </footer>
 
 <script>
-const BUILD='nw9';   // sube este numero al publicar: obliga a recargar
+const BUILD='nw10';   // sube este numero al publicar: obliga a recargar
 
 /* ===== CONFIG ===== */
 const RTDB='https://plan-gym-8aff7-default-rtdb.firebaseio.com';
@@ -850,9 +851,9 @@ function render(){
         '<div class="gbody" style="display:none"></div>'+
       '</div>'+
       (m.e?'<div class="modtag">MODIFICADA '+new Date(m.e).toLocaleDateString()+'</div>':'')+
-      (mio?'<div style="display:flex;gap:8px;margin-top:10px">'+
+      '<div class="anrow">'+
         '<span class="anbtn edit">✎ Modificar</span>'+
-        '<span class="anbtn del">⨯ Anular orden</span></div>':'')+
+        '<span class="anbtn del">⨯ Anular entrada</span></div>'+
       '<div class="nm"><span>'+new Date(m.t||Date.now()).toLocaleString()+' · '+sym(S)+'</span>'+
       '<span class="closenote abajo">✕ cerrar</span></div>';
     /* guardar el mensaje CIFRADO: se descifra al validar la clave */
@@ -942,10 +943,9 @@ async function send(t){
   try{ await fetch(rutaMsgs(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(m)}); }catch(e){}
 }
 
-/* modificar una orden ya emitida (solo la propia) */
+/* modificar una entrada ya emitida (cualquiera: Pam es la mesa) */
 function editMsg(id){
   const m=msgs[id]; if(!m) return;
-  if(String(m.a||'')!==String(user||'')) return;
   editingId=id;
   document.getElementById('txt').value=(PLANO[id]!==undefined?PLANO[id]:'')||'';
   document.querySelector('.sheet h2').textContent='Modificar orden';
@@ -957,8 +957,7 @@ function editMsg(id){
 /* anular (borrar) una orden (solo la propia) */
 async function delMsg(id){
   const m=msgs[id]; if(!m) return;
-  if(String(m.a||'')!==String(user||'')) return;
-  if(!confirm('¿Anular esta orden? No se puede deshacer.')) return;
+  if(!confirm('¿Borrar esta entrada? No se puede deshacer.')) return;
   delete msgs[id]; closeNotes(); render();
   try{ await fetch(rutaMsgs(id),{method:'DELETE'}); }catch(e){}
 }
